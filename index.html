@@ -393,6 +393,27 @@ async function ensureAudio() {
   actx = actx || new (window.AudioContext || window.webkitAudioContext)();
   if (actx.state === 'suspended') await actx.resume();
 }
+// Safari (and every browser on an iPhone, which all use its engine) clears a backlog
+// from opening the mic by running it 5% fast, which reads about 85¢ sharp, for up to
+// about 20 seconds (WebKit's AudioSampleDataConverter). So the first session after the
+// mic opens waits for that to pass. Measured on a real recording, 30/10/2026.
+let isWebKit = /Safari/.test(navigator.userAgent) && !/Chrome|Chromium|Edg/.test(navigator.userAgent);
+const MIC_SETTLE = 20000;
+let micOpenedAt = 0, settling = false, cancelSettle = false;
+function settleMic() {
+  return new Promise(resolve => {
+    const finish = ok => { settling = false; $('startBtn').textContent = 'Start session'; if (!ok) $('msg').textContent = 'Listening.'; resolve(ok); };
+    const tick = () => {
+      if (cancelSettle) { cancelSettle = false; return finish(false); }
+      const left = MIC_SETTLE - (performance.now() - micOpenedAt);
+      if (left <= 0) return finish(true);
+      $('startBtn').textContent = `Mic settling… ${Math.ceil(left / 1000)}s`;
+      $('msg').textContent = 'Safari can read about a semitone sharp just after the mic opens, so this gives it time. Tap again to cancel.';
+      setTimeout(tick, 250);
+    };
+    settling = true; tick();
+  });
+}
 async function ensureMic() {
   await ensureAudio();
   if (micOn) return true;
@@ -406,7 +427,7 @@ async function ensureMic() {
     analyser = actx.createAnalyser(); analyser.fftSize = 4096;
     src.connect(analyser);
     abuf = new Float32Array(analyser.fftSize);
-    micOn = true;
+    micOn = true; micOpenedAt = performance.now();
     $('tunerBtn').textContent = 'Mic off';
     $('msg').textContent = 'Listening.';
     return true;
@@ -532,7 +553,9 @@ function sessionOrder() {
 }
 let wake = null;
 async function startSession() {
+  if (settling) { cancelSettle = true; return; }
   if (!(await ensureMic())) return;
+  if (isWebKit && !(await settleMic())) return;
   const order = sessionOrder();
   const rec = { id: Date.now().toString(36), start: new Date().toISOString(), sound: S.sound, dir: S.dir, anyOct: S.anyOct, phones: S.phones, lo: Math.min(S.lo, S.hi), hi: Math.max(S.lo, S.hi), notes: [], done: false };
   store.sessions.push(rec); save();
