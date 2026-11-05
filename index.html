@@ -84,6 +84,11 @@
   td.x { text-align:right; }
   td.x button { padding:2px 8px; font-size:13px; }
   .tip { position:fixed; pointer-events:none; background:var(--ink); color:var(--bg); font-size:12px; padding:6px 8px; border-radius:6px; max-width:240px; z-index:10; }
+  table.sl { font-size:12.5px; }
+  table.sl td { white-space:nowrap; }
+  table.sl td.x button { padding:2px 6px; }
+  table.sl th, table.sl td { padding-left:3px; padding-right:3px; }
+  table.sl th, table.sl td { padding-left:4px; padding-right:4px; }
   .empty { color:var(--mute); font-size:14px; }
 </style>
 </head>
@@ -129,6 +134,7 @@
       <div class="meterlbl"><span>♭ flat</span><span id="verdict"></span><span>sharp ♯</span></div>
       <canvas id="trace"></canvas>
       <div class="notestat" id="noteStat"></div>
+      <div class="row" id="fbRow" hidden style="margin:12px 0 0"><label><input type="checkbox" id="usedFb"> I'm using the visual feedback on this note<kbd>F</kbd></label></div>
       <div class="controls" id="controls" hidden>
         <button id="replayBtn">🔁 Hear again<kbd>R</kbd></button>
         <button class="primary big" id="nextBtn">Next note ↑<kbd>Space</kbd></button>
@@ -142,6 +148,9 @@
   </section>
 
   <section id="history" hidden>
+    <div class="card"><div class="row" style="margin:0"><span style="font-size:14px;color:var(--mute)">Show sessions:</span>
+      <div class="tabs" id="histFilter" style="margin:0"></div></div>
+      <p class="hint" id="filterHint" style="margin:8px 0 0"></p></div>
     <div class="card" id="histTop"></div>
     <div class="card"><h2>On pitch, session by session</h2><div id="chOn"></div>
       <p class="hint" style="margin:6px 0 0">Share of held singing within 25¢ of the note.</p></div>
@@ -360,11 +369,15 @@ function noteStats(f) {
   };
 }
 function sessionStats(s) {
-  const notes = s.notes.map(n => ({ m: n.m, replays: n.r || 0, st: noteStats(n.f) })).filter(n => n.st);
+  const notes = s.notes.map(n => ({ m: n.m, replays: n.r || 0, fb: n.v == null ? null : !!n.v, st: noteStats(n.f) })).filter(n => n.st);
   if (!notes.length) return null;
+  // Per note you tick "using the visual feedback"; the session is blind (none), checking (all) or partial (some).
+  // Sessions saved before this existed have no answer, so mode is null and they only show under "All".
+  const tagged = notes.filter(n => n.fb != null), nFb = tagged.filter(n => n.fb).length;
+  const mode = !tagged.length ? null : nFb === 0 ? 'blind' : nFb === tagged.length ? 'checking' : 'partial';
   const withMean = notes.filter(n => n.st.mean != null);
   return {
-    notes, withMean,
+    notes, withMean, mode,
     on: Math.round(avg(notes.map(n => n.st.on))),
     spot: Math.round(avg(notes.map(n => n.st.spot))),
     lean: withMean.length ? avg(withMean.map(n => n.st.mean)) : null,
@@ -561,7 +574,7 @@ async function startSession() {
   store.sessions.push(rec); save();
   sess = { rec, order, i: -1, cur: null };
   $('setup').querySelectorAll('select,input,#startBtn').forEach(e => e.disabled = true);
-  $('controls').hidden = false; $('summary').hidden = true;
+  $('controls').hidden = false; $('fbRow').hidden = false; $('summary').hidden = true;
   try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
   nextNote();
 }
@@ -570,7 +583,7 @@ function nextNote() {
   if (sess.i + 1 >= sess.order.length) return finishSession();
   sess.i++;
   const m = sess.order[sess.i];
-  sess.cur = { m, r: 0, f: [], t0: null };
+  sess.cur = { m, r: 0, v: $('usedFb').checked ? 1 : 0, f: [], t0: null };   // v: 1 = used the visual feedback; carries over from the last note
   sess.rec.notes.push(sess.cur);
   save();
   hist3.length = 0;
@@ -582,6 +595,10 @@ function nextNote() {
   playRef(m);
   // timings count from when you can start singing
   sess.cur.t0 = S.phones ? performance.now() : refEnd;
+}
+function setFb(on) {
+  $('usedFb').checked = on;
+  if (sess && sess.cur) { sess.cur.v = on ? 1 : 0; save(); }
 }
 function replay() {
   if (!sess || !sess.cur) return;
@@ -605,7 +622,7 @@ function finishSession() {
   rec.notes = rec.notes.filter(n => n.f.length);
   sess = null;
   $('setup').querySelectorAll('select,input,#startBtn').forEach(e => e.disabled = false);
-  $('controls').hidden = true;
+  $('controls').hidden = true; $('fbRow').hidden = true;
   $('target').textContent = '–'; $('playing').textContent = ''; $('noteStat').textContent = ''; $('strip').innerHTML = '';
   if (wake) { wake.release().catch(() => {}); wake = null; }
   const st = sessionStats(rec);
@@ -626,7 +643,7 @@ function renderSummary(rec) {
   const ins = sessionInsights(st, prev);
   const finds = st.notes.map(n => n.st.find).filter(x => x != null);
   el.innerHTML = `
-    <h2>Session · ${fullDate(rec.start)} · ${noteName(rec.lo)}–${noteName(rec.hi)} ${rec.dir === 'down' ? '↓' : '↑'}</h2>
+    <h2>Session · ${fullDate(rec.start)} · ${noteName(rec.lo)}–${noteName(rec.hi)} ${rec.dir === 'down' ? '↓' : '↑'}${st.mode ? ' · ' + MODES[st.mode] : ''}</h2>
     <div class="tiles">
       <div class="tile"><b>${st.on}%</b><span>on pitch (within 25¢)</span></div>
       <div class="tile"><b>${st.spot}%</b><span>spot on (within 10¢)</span></div>
@@ -639,8 +656,8 @@ function renderSummary(rec) {
     <div id="sumChart"></div>
     <div class="legend"><span><i style="background:var(--flat)"></i>flat</span><span><i style="background:var(--sharp)"></i>sharp</span><span><i style="background:var(--band)"></i>±10¢</span></div>
     <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--mute);font-size:14px">Note by note</summary>
-      <table style="margin-top:8px"><tr><th>Note</th><th>On pitch</th><th>Lean</th><th>Wobble</th><th>Found in</th><th>Held</th></tr>
-      ${st.notes.map(n => `<tr><td>${noteName(n.m)}</td><td>${n.st.on}%</td><td>${n.st.mean == null ? '–' : sgn(n.st.mean) + '¢'}</td><td>${n.st.sd == null ? '–' : '±' + Math.round(n.st.sd) + '¢'}</td><td>${n.st.find == null ? 'not found' : n.st.find.toFixed(1) + 's'}</td><td>${n.st.secs.toFixed(1)}s</td></tr>`).join('')}
+      <table style="margin-top:8px"><tr><th>Note</th><th>Feedback</th><th>On pitch</th><th>Lean</th><th>Wobble</th><th>Found in</th><th>Held</th></tr>
+      ${st.notes.map(n => `<tr><td>${noteName(n.m)}</td><td>${n.fb == null ? '–' : n.fb ? 'checking' : 'blind'}</td><td>${n.st.on}%</td><td>${n.st.mean == null ? '–' : sgn(n.st.mean) + '¢'}</td><td>${n.st.sd == null ? '–' : '±' + Math.round(n.st.sd) + '¢'}</td><td>${n.st.find == null ? 'not found' : n.st.find.toFixed(1) + 's'}</td><td>${n.st.secs.toFixed(1)}s</td></tr>`).join('')}
       </table></details>
     <div class="row" style="margin:14px 0 0"><button id="discardBtn">Discard this session</button></div>`;
   el.hidden = false;
@@ -734,10 +751,21 @@ document.addEventListener('pointermove', e => {
 });
 
 // ---------- History ----------
+const MODES = { blind: 'Blind', checking: 'Checking', partial: 'Partial' };
+let histMode = 'all';
 function renderHistory() {
-  const rows = store.sessions.filter(s => s.done).map(s => ({ s, st: sessionStats(s) })).filter(r => r.st);
+  const allRows = store.sessions.filter(s => s.done).map(s => ({ s, st: sessionStats(s) })).filter(r => r.st);
+  const count = m => m === 'all' ? allRows.length : allRows.filter(r => r.st.mode === m).length;
+  $('histFilter').innerHTML = ['all', 'blind', 'checking', 'partial'].map(m => `<button data-mode="${m}"${m === histMode ? ' class="on"' : ''}>${m === 'all' ? 'All' : MODES[m]} (${count(m)})</button>`).join('');
+  $('filterHint').textContent = {
+    all: 'Blind = sang without looking at the feedback. Checking = used it on every note. Partial = a bit of both in one session. Tick the box on the Practise screen for each note.',
+    blind: 'Sessions where you never used the visual feedback.',
+    checking: 'Sessions where you used the visual feedback on every note.',
+    partial: 'Sessions where you used the feedback on some notes and not others.',
+  }[histMode];
+  const rows = histMode === 'all' ? allRows : allRows.filter(r => r.st.mode === histMode);
   if (!rows.length) {
-    $('histTop').innerHTML = '<h2>Your progress</h2><p class="empty">No sessions yet. Sing one and it will show up here.</p>';
+    $('histTop').innerHTML = `<h2>Your progress</h2><p class="empty">${allRows.length ? `No ${MODES[histMode].toLowerCase()} sessions yet.` : 'No sessions yet. Sing one and it will show up here.'}</p>`;
     ['chOn', 'chLean', 'chNotes', 'sessList'].forEach(id => $(id).innerHTML = '<p class="empty">Nothing to show yet.</p>');
     return;
   }
@@ -750,6 +778,15 @@ function renderHistory() {
   const notes = [...per.entries()].sort((a, b) => a[0] - b[0]).map(([m, p]) => ({ m, v: avg(p.means), on: avg(p.on), k: p.means.length }));
 
   const ins = [];
+  if (histMode === 'all') {
+    // note by note, whatever the session was: blind against checking
+    const ns = allRows.flatMap(r => r.st.notes).filter(n => n.fb != null);
+    const b = ns.filter(n => !n.fb), c = ns.filter(n => n.fb);
+    if (b.length >= 3 && c.length >= 3) {
+      const lb = b.filter(n => n.st.mean != null), lc = c.filter(n => n.st.mean != null);
+      ins.push(`Note by note: <b>${Math.round(avg(b.map(n => n.st.on)))}%</b> on pitch blind (${b.length} notes) against <b>${Math.round(avg(c.map(n => n.st.on)))}%</b> when checking (${c.length} notes)${lb.length && lc.length ? `. Average miss ${Math.round(avg(lb.map(n => Math.abs(n.st.mean))))}¢ blind, ${Math.round(avg(lc.map(n => Math.abs(n.st.mean))))}¢ checking` : ''}.`);
+    }
+  }
   const mins = Math.round(rows.reduce((x, r) => x + r.st.secs, 0) / 60);
   ins.push(`${rows.length} session${rows.length === 1 ? '' : 's'}, ${mins < 1 ? 'under a minute' : mins + ' min'} of held singing measured.`);
   if (rows.length >= 4) {
@@ -773,10 +810,14 @@ function renderHistory() {
   leanChart($('chLean'), rows.map(r => ({ v: r.st.lean, label: ddmm(r.s.start), tip: `${fullDate(r.s.start)}: ${r.st.lean == null ? 'n/a' : lean(r.st.lean)}` })));
   leanChart($('chNotes'), notes.map(n => ({ v: n.v, label: noteName(n.m), tip: `${noteName(n.m)}: ${lean(n.v)}, ${Math.round(n.on)}% on pitch, over ${n.k} session${n.k === 1 ? '' : 's'}` })));
 
-  $('sessList').innerHTML = `<table><tr><th>When</th><th>Range</th><th>Notes</th><th>On pitch</th><th>Lean</th><th></th></tr>${
-    [...rows].reverse().map(({ s, st }) => `<tr><td><a href="#" data-open="${s.id}">${fullDate(s.start)}</a></td><td>${noteName(s.lo)}–${noteName(s.hi)} ${s.dir === 'down' ? '↓' : '↑'}</td><td>${st.notes.length}</td><td>${st.on}%</td><td>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</td><td class="x"><button data-del="${s.id}" title="Delete this session">✕</button></td></tr>`).join('')
-  }</table>`;
+  $('sessList').innerHTML = `<div style="overflow-x:auto"><table class="sl"><tr><th>When · mode · range</th><th>On pitch</th><th>Spot on</th><th>Found in</th><th>Lean</th><th></th></tr>${
+    [...rows].reverse().map(({ s, st }) => `<tr><td><a href="#" data-open="${s.id}">${ddmm(s.start)} ${fullDate(s.start).slice(-5)}</a><br><span style="font-size:11.5px;color:var(--mute)">${st.mode ? MODES[st.mode] : 'Not recorded'} · ${noteName(s.lo)}–${noteName(s.hi)}${s.dir === 'down' ? '↓' : '↑'}</span></td><td>${st.on}%</td><td>${st.spot}%</td><td>${(f => f.length ? median(f).toFixed(1) + 's' : '–')(st.notes.map(n => n.st.find).filter(x => x != null))}</td><td>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</td><td class="x"><button data-del="${s.id}" title="Delete this session">✕</button></td></tr>`).join('')
+  }</table></div>`;
 }
+$('histFilter').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]'); if (!b) return;
+  histMode = b.dataset.mode; renderHistory();
+});
 $('sessList').addEventListener('click', e => {
   const o = e.target.closest('[data-open]'), d = e.target.closest('[data-del]');
   if (o) { e.preventDefault(); const s = store.sessions.find(x => x.id === o.dataset.open); showTab('practise'); renderSummary(s); }
@@ -813,6 +854,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab
 $('startBtn').onclick = startSession;
 $('nextBtn').onclick = nextNote;
 $('replayBtn').onclick = replay;
+$('usedFb').onchange = e => { setFb(e.target.checked); e.target.blur(); };
 $('finishBtn').onclick = finishSession;
 $('tunerBtn').onclick = async () => { if (micOn && !sess) micOff(); else await ensureMic(); };
 document.addEventListener('keydown', e => {
@@ -821,6 +863,7 @@ document.addEventListener('keydown', e => {
   if (document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
   if (e.code === 'Space') { e.preventDefault(); nextNote(); }
   else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); replay(); }
+  else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFb(!$('usedFb').checked); }
 });
 // keep what's been sung if the tab is closed mid-session
 addEventListener('pagehide', save);
