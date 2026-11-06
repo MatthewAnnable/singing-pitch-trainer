@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Singing 1-5-1 Trainer</title>
+<style>
+  :root {
+    --bg:#faf7f2; --ink:#1d1b19; --mute:#7a746b; --card:#fff; --line:#e4ddd0; --accent:#8a4b1f; --chip:#f1ebe1;
+    --good:#0ca30c; --warn:#d99a00; --bad:#d03b3b; --flat:#2a78d6; --sharp:#d03b3b; --band:#f0efec; --grid:#ece6dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#181614; --ink:#f0ebe3; --mute:#9c958a; --card:#23201d; --line:#3a352f; --accent:#e0a064; --chip:#2e2a26;
+      --good:#0ca30c; --warn:#fab219; --bad:#e0605a; --flat:#3987e5; --sharp:#e0605a; --band:#383835; --grid:#33302b;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  .sub { color:var(--mute); font-size:14px; margin:0 0 14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; }
+  .tabs button { border-radius:999px; }
+  .tabs button.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  button, .btn { font:inherit; font-size:15px; padding:9px 14px; border-radius:10px; border:1px solid var(--line); background:var(--chip); color:var(--ink); cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.big { font-size:17px; padding:12px 20px; }
+  kbd { font:12px ui-monospace,Menlo,monospace; opacity:.7; margin-left:4px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; margin-bottom:12px; }
+  label { font-size:14px; color:var(--mute); display:flex; align-items:center; gap:6px; }
+  select { font:inherit; font-size:15px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  input[type=range] { width:120px; }
+  .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
+  .msg { color:var(--mute); font-size:13px; margin:8px 0 0; min-height:1em; }
+
+  /* live view */
+  .progress { font-size:13px; color:var(--mute); margin-bottom:6px; min-height:1em; }
+  .strip { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px; }
+  .strip span { font-size:12px; padding:2px 6px; border-radius:6px; background:var(--chip); color:var(--mute); border:1px solid transparent; }
+  .strip span.cur { border-color:var(--accent); color:var(--ink); font-weight:600; }
+  .strip span.g { box-shadow:inset 0 -3px 0 var(--good); color:var(--ink); }
+  .strip span.w { box-shadow:inset 0 -3px 0 var(--warn); color:var(--ink); }
+  .strip span.b { box-shadow:inset 0 -3px 0 var(--bad); color:var(--ink); }
+  .notes { display:grid; grid-template-columns:1fr 1fr; gap:12px; text-align:center; margin-bottom:10px; }
+  .lbl { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mute); }
+  .target, .heard { font-size:52px; font-weight:700; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .heard { color:var(--mute); }
+  .heard.g { color:var(--good); } .heard.w { color:var(--warn); } .heard.b { color:var(--bad); }
+  .cents { font-size:15px; color:var(--mute); min-height:1.3em; font-variant-numeric:tabular-nums; }
+  .playing { font-size:13px; color:var(--accent); min-height:1.2em; }
+
+  .meter { position:relative; height:34px; border-radius:8px; background:var(--band); overflow:hidden; margin:6px 0 4px; }
+  .meter .z { position:absolute; top:0; bottom:0; }
+  .meter .tick { position:absolute; top:0; bottom:0; width:1px; background:var(--line); }
+  .meter .mid { position:absolute; top:0; bottom:0; left:50%; width:2px; margin-left:-1px; background:var(--ink); opacity:.5; }
+  #needle { position:absolute; top:3px; bottom:3px; width:6px; margin-left:-3px; border-radius:3px; background:var(--ink); left:50%; opacity:0; transition:opacity .2s; }
+  .meterlbl { display:flex; justify-content:space-between; font-size:13px; color:var(--mute); margin-bottom:10px; }
+  #verdict { font-weight:600; color:var(--ink); }
+  canvas { width:100%; height:200px; display:block; border-radius:8px; background:var(--card); }
+  .notestat { font-size:14px; margin:8px 0 0; min-height:1.3em; font-variant-numeric:tabular-nums; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .controls .primary { flex:1 1 180px; }
+  .level { height:4px; background:var(--chip); border-radius:2px; overflow:hidden; margin-top:12px; }
+  #level { height:100%; width:0; background:var(--accent); }
+
+  /* summary + history */
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:14px; }
+  .tile { background:var(--chip); border-radius:10px; padding:10px 12px; }
+  .tile b { display:block; font-size:26px; font-variant-numeric:tabular-nums; }
+  .tile span { font-size:12px; color:var(--mute); }
+  ul.ins { margin:0 0 6px; padding-left:18px; }
+  ul.ins li { margin:0 0 6px; }
+  svg text { fill:var(--mute); font-size:11px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  svg { display:block; width:100%; height:auto; }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--mute); margin-top:6px; }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
+  th { font-size:12px; color:var(--mute); font-weight:500; }
+  td.x { text-align:right; }
+  td.x button { padding:2px 8px; font-size:13px; }
+  .tip { position:fixed; pointer-events:none; background:var(--ink); color:var(--bg); font-size:12px; padding:6px 8px; border-radius:6px; max-width:240px; z-index:10; }
+  table.sl { font-size:12.5px; }
+  table.sl td { white-space:nowrap; }
+  table.sl td.x button { padding:2px 6px; }
+  table.sl th, table.sl td { padding-left:3px; padding-right:3px; }
+  table.sl th, table.sl td { padding-left:4px; padding-right:4px; }
+  .empty { color:var(--mute); font-size:14px; }
+  [hidden] { display:none !important; }
+  .target { font-size:30px; }
+  .stages { display:flex; gap:6px; margin-bottom:10px; }
+  .stages span { flex:1; text-align:center; font-size:13px; padding:6px 4px; border-radius:8px; background:var(--chip); color:var(--mute); border:1px solid transparent; font-variant-numeric:tabular-nums; }
+  .stages span.cur { border-color:var(--accent); color:var(--ink); font-weight:600; }
+  .stages span.g { box-shadow:inset 0 -3px 0 var(--good); color:var(--ink); }
+  .stages span.w { box-shadow:inset 0 -3px 0 var(--warn); color:var(--ink); }
+  .stages span.b { box-shadow:inset 0 -3px 0 var(--bad); color:var(--ink); }
+  :root { --s1:#2a78d6; --s2:#d97706; --s3:#8b5cc7; }
+  @media (prefers-color-scheme: dark) { :root { --s1:#3987e5; --s2:#fab219; --s3:#b48aea; } }
+  td.fl { color:var(--flat); } td.sh { color:var(--sharp); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Singing 1–5–1 Trainer</h1>
+  <p class="sub">Hear the root, sing it, go up to the 5th, and come back down to the root. Every take is saved, so you can see which note you drift on. <a href="index.html" style="color:var(--accent)">Single-note ladder →</a></p>
+  <nav class="tabs"><button data-tab="practise" class="on">Practise</button><button data-tab="history">History</button></nav>
+
+  <section id="practise">
+    <div class="card" id="setup">
+      <div class="row">
+        <label>From <select id="lo"></select></label>
+        <label>To <select id="hi"></select></label>
+        <label>Every <select id="step"><option value="1">semitone</option><option value="2">2nd semitone</option><option value="3">3rd semitone</option><option value="4">4th semitone</option></select></label>
+        <label>Order <select id="order"><option value="up">up ↑</option><option value="down">down ↓</option><option value="shuffle">shuffle</option></select></label>
+        <label>Sound <select id="sound"><option value="piano">Piano</option><option value="guitar">Guitar</option></select></label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="phones"> I'm wearing headphones</label>
+        <label>Mic sensitivity <input type="range" id="gate" min="0" max="100"></label>
+      </div>
+      <p class="hint" id="phonesHint"></p>
+      <div class="row" style="margin:0">
+        <button class="primary big" id="startBtn">Start session</button>
+        <button id="tunerBtn">Just the tuner</button>
+      </div>
+    </div>
+
+    <div class="card" id="live">
+      <div class="progress" id="progress">Not started.</div>
+      <div class="strip" id="strip"></div>
+      <div class="stages" id="stages"></div>
+      <div class="notes">
+        <div><div class="lbl">Sing</div><div class="target" id="target">–</div><div class="playing" id="playing"></div></div>
+        <div><div class="lbl">You</div><div class="heard" id="heard">–</div><div class="cents" id="cents"></div></div>
+      </div>
+      <div class="meter" id="meter">
+        <div class="z" style="left:25%;width:50%;background:color-mix(in srgb,var(--warn) 22%,transparent)"></div>
+        <div class="z" style="left:40%;width:20%;background:color-mix(in srgb,var(--good) 30%,transparent)"></div>
+        <div class="tick" style="left:10%"></div><div class="tick" style="left:30%"></div><div class="tick" style="left:70%"></div><div class="tick" style="left:90%"></div>
+        <div class="mid"></div><div id="needle"></div>
+      </div>
+      <div class="meterlbl"><span>♭ flat</span><span id="verdict"></span><span>sharp ♯</span></div>
+      <canvas id="trace"></canvas>
+      <div class="notestat" id="noteStat"></div>
+      <div class="row" id="fbRow" hidden style="margin:12px 0 0"><label><input type="checkbox" id="usedFb"> I'm using the visual feedback on this take<kbd>F</kbd></label></div>
+      <div class="controls" id="controls" hidden>
+        <button id="replayBtn">🔁 Try this one again<kbd>R</kbd></button>
+        <button class="primary big" id="nextBtn">Next root<kbd>Space</kbd></button>
+        <button id="finishBtn">Finish</button>
+      </div>
+      <div class="level"><div id="level"></div></div>
+      <p class="msg" id="msg"></p>
+    </div>
+
+    <div class="card" id="summary" hidden></div>
+  </section>
+
+  <section id="history" hidden>
+    <div class="card"><div class="row" style="margin:0"><span style="font-size:14px;color:var(--mute)">Show sessions:</span>
+      <div class="tabs" id="histFilter" style="margin:0"></div></div>
+      <p class="hint" id="filterHint" style="margin:8px 0 0"></p></div>
+    <div class="card" id="histTop"></div>
+    <div class="card"><h2>Lean on each note, session by session</h2><div id="chLean"></div>
+      <div class="legend"><span><i style="background:var(--s1)"></i>1st root</span><span><i style="background:var(--s2)"></i>5th</span><span><i style="background:var(--s3)"></i>return root</span><span><i style="background:var(--band)"></i>±10¢ / ±25¢</span></div>
+      <p class="hint" style="margin:6px 0 0">Below the line is flat, above is sharp. Fixed ±50¢ scale.</p></div>
+    <div class="card"><h2>Average lean on each note, all sessions</h2><div id="chStages"></div><div class="legend"><span><i style="background:var(--flat)"></i>flat</span><span><i style="background:var(--sharp)"></i>sharp</span><span><i style="background:var(--band)"></i>±10¢ (inner) / ±25¢</span></div></div>
+    <div class="card"><h2>On pitch on each note, session by session</h2><div id="chOn"></div>
+      <div class="legend"><span><i style="background:var(--s1)"></i>1st root</span><span><i style="background:var(--s2)"></i>5th</span><span><i style="background:var(--s3)"></i>return root</span></div>
+      <p class="hint" style="margin:6px 0 0">Share of held singing within 25¢ of the note.</p></div>
+    <div class="card"><h2>By starting note</h2><div id="byRoot"></div></div>
+    <div class="card"><h2>Sessions</h2><div id="sessList"></div>
+      <div class="row" style="margin:12px 0 6px">
+        <button id="exportBtn">Export sessions</button>
+        <label class="btn">Import…<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+      </div>
+      <p class="hint" style="margin:0">Sessions are saved in this browser only. Export now and then to keep a copy, or to move them to another device.</p>
+    </div>
+  </section>
+</main>
+<div id="tip" class="tip" hidden></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// ---------- Notes ----------
+const NAMES = ['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
+const noteName = m => NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+const hzToMidi = f => 69 + 12 * Math.log2(f / 440);
+const LOWEST = 36, HIGHEST = 84;   // C2 .. C6
+
+const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+const median = a => { const s = [...a].sort((x, y) => x - y), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+const sdev = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) * (x - m)))); };
+const lean = c => Math.abs(c) < 3 ? 'centred' : `${Math.abs(Math.round(c))}¢ ${c < 0 ? 'flat' : 'sharp'}`;
+const sgn = c => { const r = Math.round(c); return (r > 0 ? '+' : r < 0 ? '−' : '') + Math.abs(r); };
+const zone = c => Math.abs(c) <= 10 ? 'g' : Math.abs(c) <= 25 ? 'w' : 'b';
+const ddmm = iso => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
+const fullDate = iso => { const d = new Date(iso); return `${ddmm(iso)}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ---------- Storage ----------
+// One record per session; each take keeps its raw frames ([ms since listening began,
+// cents from the ROOT, unfolded]) so the three notes are found afterwards and the
+// stats can be redefined later.
+const KEY = 'singing-151-v1';
+function load() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  s = s && s.sessions ? s : { sessions: [] };
+  s.settings = Object.assign({ lo: 48, hi: 58, step: 2, order: 'up', sound: 'piano', phones: false, gate: 60 }, s.settings || {});
+  s.sessions.forEach(x => { x.done = true; });   // anything unfinished ended when the tab closed
+  return s;
+}
+const store = load();
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(store)); }
+  catch (e) { $('msg').textContent = 'Couldn\'t save (browser storage full or blocked). Export your sessions to keep them.'; }
+}
+const S = store.settings;
+
+// ---------- Setup controls ----------
+for (const id of ['lo', 'hi']) for (let m = LOWEST; m <= HIGHEST; m++) $(id).add(new Option(noteName(m), m));
+for (const id of ['lo', 'hi', 'step', 'order', 'sound']) $(id).value = S[id];
+$('phones').checked = S.phones; $('gate').value = S.gate;
+function phonesHint() {
+  $('phonesHint').textContent = S.phones
+    ? 'Headphones: the root keeps sounding while you sing, and you\'re scored the whole time.'
+    : 'Speakers: the root plays for a moment, then stops so the mic only hears you. Start singing when it stops: root, 5th, root.';
+}
+phonesHint();
+for (const id of ['lo', 'hi', 'step', 'order', 'sound', 'phones', 'gate']) $(id).addEventListener('change', () => {
+  S.lo = +$('lo').value; S.hi = +$('hi').value; S.step = +$('step').value; S.order = $('order').value; S.sound = $('sound').value;
+  S.phones = $('phones').checked; S.gate = +$('gate').value;
+  phonesHint(); save();
+});
+
+// ---------- Sounds ----------
+// Both are rendered once per note into a buffer. Pitch accuracy matters more than
+// realism here: it's the reference you're tuning to.
+let actx;
+const soundCache = new Map();
+function pianoBuffer(midi) {
+  const sr = actx.sampleRate, f = midiHz(midi), len = Math.floor(sr * 3), b = actx.createBuffer(1, len, sr), d = b.getChannelData(0);
+  const B = 0.00008;                                  // string stiffness: upper partials run a hair sharp
+  const nP = Math.max(4, Math.min(16, Math.floor(7000 / f)));
+  const tauSlow = 3.2 * Math.pow(2, -(midi - 48) / 24);
+  for (let k = 1; k <= nP; k++) {
+    const fk = k * f * Math.sqrt(1 + B * k * k) / Math.sqrt(1 + B);   // fundamental stays exact
+    const a = (k === 2 ? 0.7 : 1) / Math.pow(k, 1.25);
+    const r = (1 / tauSlow) * (1 + 0.45 * Math.pow(k - 1, 1.2));
+    for (const det of [-0.0004, 0.0004]) {             // two strings per note, ~0.7¢ apart
+      const w = 2 * Math.PI * fk * (1 + det) / sr, ph = Math.random() * 6.28;
+      for (let i = 0; i < len; i++) {
+        const t = i / sr;
+        d[i] += a * (0.55 * Math.exp(-t * r * 5) + 0.45 * Math.exp(-t * r)) * Math.sin(w * i + ph);
+      }
+    }
+  }
+  // hammer thump
+  let lp = 0; const thump = Math.floor(sr * 0.025);
+  for (let i = 0; i < thump; i++) { lp += 0.08 * ((Math.random() * 2 - 1) - lp); d[i] += lp * 0.6 * (1 - i / thump); }
+  shape(d, sr, 0.004);
+  return { buf: b, rate: 1 };
+}
+function guitarBuffer(midi) {
+  // Karplus-Strong. Each sample is fed back as the average of itself and the next,
+  // so the loop's period is N - 0.5 samples. That's rarely the exact pitch, so the
+  // buffer is played back at whatever rate corrects it.
+  const sr = actx.sampleRate, f = midiHz(midi), len = Math.floor(sr * 3), b = actx.createBuffer(1, len, sr), d = b.getChannelData(0);
+  const N = Math.max(3, Math.round(sr / f + 0.5)), f0 = sr / (N - 0.5);
+  const ring = new Float32Array(N);
+  let lp = 0;
+  for (let i = 0; i < N; i++) { lp += 0.5 * ((Math.random() * 2 - 1) - lp); ring[i] = lp; }
+  const pick = Math.max(1, Math.floor(N * 0.18)), ex = ring.slice();
+  for (let i = 0; i < N; i++) ring[i] = ex[i] - 0.6 * ex[(i - pick + N) % N];   // plucked a little way from the bridge
+  const rho = Math.pow(0.001, 1 / (f0 * 7));
+  let idx = 0;
+  for (let i = 0; i < len; i++) {
+    const y = ring[idx], nx = (idx + 1) % N;
+    d[i] = y;
+    ring[idx] = rho * 0.5 * (y + ring[nx]);
+    idx = nx;
+  }
+  shape(d, sr, 0.002);
+  return { buf: b, rate: f / f0 };
+}
+function shape(d, sr, attack) {
+  const a = Math.floor(sr * attack), r = Math.floor(sr * 0.2);
+  for (let i = 0; i < a; i++) d[i] *= i / a;
+  for (let i = 0; i < r; i++) d[d.length - 1 - i] *= i / r;
+  let peak = 0; for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  if (peak > 0) for (let i = 0; i < d.length; i++) d[i] *= 0.7 / peak;
+}
+function getSound(midi) {
+  const key = S.sound + midi;
+  if (!soundCache.has(key)) soundCache.set(key, (S.sound === 'guitar' ? guitarBuffer : pianoBuffer)(midi));
+  return soundCache.get(key);
+}
+let ref = null, refEnd = 0;   // refEnd: performance.now() when the speaker is quiet again
+function playRef(midi) {
+  stopRef();
+  const { buf, rate } = getSound(midi);
+  const src = actx.createBufferSource(), g = actx.createGain();
+  src.buffer = buf; src.playbackRate.value = rate;
+  const len = S.phones ? 2.8 : 1.8, t = actx.currentTime;
+  g.gain.setValueAtTime(1, t); g.gain.setValueAtTime(1, t + len - 0.15); g.gain.linearRampToValueAtTime(0, t + len);
+  src.connect(g).connect(actx.destination);
+  src.start(t); src.stop(t + len + 0.05);
+  ref = { src, g };
+  refEnd = performance.now() + (S.phones ? 0 : len * 1000 + 150);
+  traceMarks.push({ t: performance.now(), label: noteName(midi), play: S.phones ? 0 : len * 1000 + 150 });
+}
+function stopRef() {
+  if (!ref) return;
+  try { const t = actx.currentTime; ref.g.gain.cancelScheduledValues(t); ref.g.gain.setValueAtTime(ref.g.gain.value, t); ref.g.gain.linearRampToValueAtTime(0, t + 0.03); ref.src.stop(t + 0.05); } catch (e) {}
+  ref = null;
+}
+const gated = () => !S.phones && performance.now() < refEnd;
+
+// ---------- Pitch detection (McLeod normalised square difference) ----------
+// Same detector as the Classical Note Trainer, with the range widened for voice.
+const F_MIN = 65, F_MAX = 1100;
+function detectPitch(buf, sr) {
+  const n = buf.length, maxTau = Math.min(n >> 1, Math.floor(sr / F_MIN)), minTau = Math.floor(sr / F_MAX);
+  const nsdf = new Float32Array(maxTau);
+  let sq = 0; for (let i = 0; i < n; i++) sq += buf[i] * buf[i];
+  let m = 2 * sq;
+  for (let tau = 0; tau < maxTau; tau++) {
+    let acf = 0;
+    for (let i = 0; i < n - tau; i++) acf += buf[i] * buf[i + tau];
+    nsdf[tau] = m > 0 ? 2 * acf / m : 0;
+    m -= buf[tau] * buf[tau] + buf[n - 1 - tau] * buf[n - 1 - tau];
+  }
+  const peaks = [];
+  let tau = 1;
+  while (tau < maxTau - 1 && nsdf[tau] > 0) tau++;
+  while (tau < maxTau - 1) {
+    while (tau < maxTau - 1 && nsdf[tau] <= 0) tau++;
+    let best = -1;
+    while (tau < maxTau - 1 && nsdf[tau] > 0) {
+      if (best < 0 || nsdf[tau] > nsdf[best]) best = tau;
+      tau++;
+    }
+    if (best > 0 && best >= minTau && nsdf[best] > nsdf[best - 1] && nsdf[best] >= nsdf[best + 1]) peaks.push(best);
+  }
+  if (!peaks.length) return null;
+  let maxVal = 0; for (const p of peaks) maxVal = Math.max(maxVal, nsdf[p]);
+  const pick = peaks.find(p => nsdf[p] >= 0.9 * maxVal);
+  const a = nsdf[pick - 1], b = nsdf[pick], c = nsdf[pick + 1];
+  const shift = (a - c) / (2 * (a - 2 * b + c) || 1);
+  return { freq: sr / (pick + shift), clarity: b };
+}
+
+// ---------- Stats ----------
+// A note's first 0.3s of each sung stretch is the "onset" (where scoops live); the
+// rest is "held", which is what accuracy and lean are measured on. Frames more than
+// 50¢ out count against accuracy but are left out of the lean, so one wrong note
+// can't drag the average.
+function noteStats(f) {
+  if (!f || f.length < 10) return null;
+  const held = [], onset = [];
+  let segStart = 0, prev = -1e9, secs = 0;
+  for (const [ms, c] of f) {
+    if (ms - prev > 160) segStart = ms; else secs += (ms - prev) / 1000;
+    prev = ms;
+    (ms - segStart < 300 ? onset : held).push(c);
+  }
+  const H = held.length >= 5 ? held : f.map(x => x[1]);
+  const near = H.filter(c => Math.abs(c) <= 50), ons = onset.filter(c => Math.abs(c) <= 100);
+  const pct = k => Math.round(100 * H.filter(c => Math.abs(c) <= k).length / H.length);
+  let find = null;
+  for (let i = 0; i + 2 < f.length; i++) {
+    if (Math.abs(f[i][1]) <= 25 && Math.abs(f[i + 1][1]) <= 25 && Math.abs(f[i + 2][1]) <= 25 && f[i + 2][0] - f[i][0] < 200) { find = f[i][0] / 1000; break; }
+  }
+  return {
+    secs, on: pct(25), spot: pct(10), off: Math.round(100 * (1 - near.length / H.length)),
+    mean: near.length >= 3 ? avg(near) : null,
+    sd: near.length >= 3 ? sdev(near) : null,
+    onset: ons.length >= 3 ? avg(ons) : null,
+    find,
+  };
+}
+
+// The three notes of a take, found from the raw frames. Every frame is read as "how far
+// from the root" or "how far from the 5th" (octave doesn't matter); frames near neither
+// are the slide between notes. Short stretches are dropped, so a blip can't count as a note.
+const fold = c => c - Math.round(c / 1200) * 1200;
+function segment(f) {
+  const runs = []; let cur = null, prev = -1e9;
+  for (const [ms, c] of f) {
+    const d1 = fold(c), d5 = fold(c - 700);
+    const k = Math.abs(d1) <= 100 ? 0 : Math.abs(d5) <= 100 ? 1 : -1;
+    if (k < 0) { cur = null; continue; }
+    if (!cur || cur.k !== k || ms - prev > 200) { cur = { k, f: [] }; runs.push(cur); }
+    cur.f.push([ms, k ? d5 : d1]); prev = ms;
+  }
+  const dur = r => r.f[r.f.length - 1][0] - r.f[0][0];
+  const merged = [];
+  for (const r of runs.filter(r => r.f.length >= 8 && dur(r) >= 250)) {
+    const l = merged[merged.length - 1];
+    if (l && l.k === r.k && r.f[0][0] - l.f[l.f.length - 1][0] < 500) l.f.push(...r.f); else merged.push({ k: r.k, f: [...r.f] });
+  }
+  const a = merged.findIndex(r => r.k === 0);
+  const b = a < 0 ? -1 : merged.findIndex((r, i) => i > a && r.k === 1);
+  const c = b < 0 ? -1 : merged.findIndex((r, i) => i > b && r.k === 0);
+  return [a, b, c].map(i => i < 0 ? null : merged[i]);
+}
+const STAGE = ['1st root', '5th', 'return root'];
+function takeStats(t) {
+  const st = segment(t.f).map(r => r && noteStats(r.f));
+  const m = st.map(x => x && x.mean);
+  return {
+    st, found: st.filter(Boolean).length,
+    width: m[0] != null && m[1] != null ? m[1] - m[0] : null,   // + = the 5th you sang was wider than 700¢ from where you started
+    drift: m[0] != null && m[2] != null ? m[2] - m[0] : null,   // + = you came back sharper than you left
+  };
+}
+function sessionStats(s) {
+  const takes = s.notes.map(n => ({ m: n.m, replays: n.r || 0, fb: n.v == null ? null : !!n.v, ...takeStats(n) })).filter(t => t.found > 0);
+  if (!takes.length) return null;
+  // Per take you tick "using the visual feedback"; the session is blind (none), checking (all) or partial (some).
+  const tagged = takes.filter(t => t.fb != null), nFb = tagged.filter(t => t.fb).length;
+  const mode = !tagged.length ? null : nFb === 0 ? 'blind' : nFb === tagged.length ? 'checking' : 'partial';
+  const stages = [0, 1, 2].map(k => {
+    const all = takes.filter(t => t.st[k]), withMean = all.filter(t => t.st[k].mean != null);
+    return {
+      n: all.length,
+      lean: withMean.length ? avg(withMean.map(t => t.st[k].mean)) : null,
+      on: all.length ? Math.round(avg(all.map(t => t.st[k].on))) : null,
+      spot: all.length ? Math.round(avg(all.map(t => t.st[k].spot))) : null,
+      onset: (() => { const o = withMean.filter(t => t.st[k].onset != null).map(t => t.st[k].onset - t.st[k].mean); return o.length >= 3 ? avg(o) : null; })(),
+    };
+  });
+  const ws = takes.map(t => t.width).filter(x => x != null), ds = takes.map(t => t.drift).filter(x => x != null);
+  const ons = stages.filter(x => x.on != null).map(x => x.on);
+  return {
+    takes, mode, stages,
+    width: ws.length ? avg(ws) : null, drift: ds.length ? avg(ds) : null,
+    complete: takes.filter(t => t.found === 3).length,
+    on: Math.round(avg(ons)),
+  };
+}
+
+// ---------- Microphone + main loop ----------
+let analyser, abuf, stream = null, micOn = false, lastRun = 0;
+const hist3 = [];                 // last three pitch readings, for a median filter against octave blips
+let live = { c: null, m: null };  // what's being heard now
+async function ensureAudio() {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') await actx.resume();
+}
+// Safari (and every browser on an iPhone, which all use its engine) clears a backlog
+// from opening the mic by running it 5% fast, which reads about 85¢ sharp, for up to
+// about 20 seconds (WebKit's AudioSampleDataConverter). So the first session after the
+// mic opens waits for that to pass. Measured on a real recording, 30/10/2026.
+let isWebKit = /Safari/.test(navigator.userAgent) && !/Chrome|Chromium|Edg/.test(navigator.userAgent);
+const MIC_SETTLE = 20000;
+let micOpenedAt = 0, settling = false, cancelSettle = false;
+function settleMic() {
+  return new Promise(resolve => {
+    const finish = ok => { settling = false; $('startBtn').textContent = 'Start session'; if (!ok) $('msg').textContent = 'Listening.'; resolve(ok); };
+    const tick = () => {
+      if (cancelSettle) { cancelSettle = false; return finish(false); }
+      const left = MIC_SETTLE - (performance.now() - micOpenedAt);
+      if (left <= 0) return finish(true);
+      $('startBtn').textContent = `Mic settling… ${Math.ceil(left / 1000)}s`;
+      $('msg').textContent = 'Safari can read about a semitone sharp just after the mic opens, so this gives it time. Tap again to cancel.';
+      setTimeout(tick, 250);
+    };
+    settling = true; tick();
+  });
+}
+async function ensureMic() {
+  await ensureAudio();
+  if (micOn) return true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    $('msg').textContent = 'This browser can\'t reach the microphone from here. Try Chrome or Safari.';
+    return false;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+    const src = actx.createMediaStreamSource(stream);
+    analyser = actx.createAnalyser(); analyser.fftSize = 4096;
+    src.connect(analyser);
+    abuf = new Float32Array(analyser.fftSize);
+    micOn = true; micOpenedAt = performance.now();
+    $('tunerBtn').textContent = 'Mic off';
+    $('msg').textContent = 'Listening.';
+    return true;
+  } catch (e) {
+    $('msg').textContent = 'Couldn\'t use the microphone: ' + (e.message || e.name) + '. Allow it in the browser and try again.';
+    return false;
+  }
+}
+function micOff() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; micOn = false; live = { c: null, m: null };
+  $('tunerBtn').textContent = 'Just the tuner';
+  $('msg').textContent = 'Mic off.';
+}
+
+function analyse(now) {
+  analyser.getFloatTimeDomainData(abuf);
+  let s = 0; for (let i = 0; i < abuf.length; i++) s += abuf[i] * abuf[i];
+  const rms = Math.sqrt(s / abuf.length);
+  $('level').style.width = Math.min(100, Math.sqrt(rms) * 220) + '%';
+  const gate = 0.02 * Math.pow(0.035, S.gate / 100);
+  let midi = null;
+  if (rms >= gate) {
+    const r = detectPitch(abuf, actx.sampleRate);
+    if (r && r.clarity >= 0.8 && r.freq >= F_MIN && r.freq <= F_MAX) midi = hzToMidi(r.freq);
+  }
+  if (midi == null) { hist3.length = 0; live = { c: null, m: null }; trace.push({ t: now, c: null }); return; }
+  hist3.push(midi); if (hist3.length > 3) hist3.shift();
+  const m = median(hist3);
+  const T = sess && sess.cur;
+  let c, raw = null, k = 0;
+  if (T) {
+    raw = (m - T.m) * 100;
+    const d1 = fold(raw), d5 = fold(raw - 700);
+    if (Math.abs(d1) <= Math.abs(d5)) c = d1; else { c = d5; k = 1; }
+  } else c = (m - Math.round(m)) * 100;   // tuner: nearest note
+  live = { c, m, k };
+  const listening = T && !gated();
+  trace.push({ t: now, c: !T || Math.abs(c) <= 100 ? c : null, quiet: !listening && !!T });
+  if (listening) {
+    if (T.t0 == null) T.t0 = now;
+    T.f.push([Math.round(now - T.t0), Math.round(raw * 10) / 10]);
+  }
+}
+
+let needle = 0, lastStat = 0;
+function loop(t) {
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  if (micOn && now - lastRun >= 30) { lastRun = now; analyse(now); }
+  // read-outs
+  const T = sess && sess.cur;
+  const playing = T && gated();
+  $('playing').textContent = playing ? '🔊 listen…' : (T && !S.phones ? 'now sing' : '');
+  // while the note plays through the speakers the mic is hearing the piano, not you
+  if (live.c != null && !playing) {
+    const z = zone(live.c), near = Math.abs(live.c) <= 50;
+    $('heard').textContent = noteName(Math.round(live.m));
+    $('heard').className = 'heard ' + (near ? z : 'b');
+    $('cents').textContent = near ? `${sgn(live.c)}¢${T ? (live.k ? ' on the 5th' : ' on the root') : ''}` : (T ? 'between notes' : '');
+    needle += (Math.max(-50, Math.min(50, live.c)) - needle) * 0.35;
+    $('needle').style.left = (50 + needle) + '%';
+    $('needle').style.opacity = near ? 1 : 0.3;
+    $('needle').style.background = `var(--${{ g: 'good', w: 'warn', b: 'bad' }[near ? z : 'b']})`;
+    const a = Math.abs(live.c), dir = live.c < 0 ? 'flat' : 'sharp';
+    $('verdict').textContent = a <= 10 ? 'Spot on' : a <= 25 ? `A touch ${dir}` : a <= 50 ? (dir[0].toUpperCase() + dir.slice(1)) : '';
+  } else {
+    $('heard').textContent = '–'; $('heard').className = 'heard'; $('cents').textContent = '';
+    $('needle').style.opacity = 0; $('verdict').textContent = '';
+  }
+  if (T && now - lastStat > 250) {
+    lastStat = now;
+    renderStages(takeStats(T));
+  }
+  drawTrace(now);
+}
+requestAnimationFrame(loop);
+const STAGE_SHORT = ['1', '5', '1'];
+function renderStages(ts) {
+  if (!ts) { $('stages').innerHTML = ''; return; }
+  const cur = ts.st.findIndex(x => !x);
+  $('stages').innerHTML = ts.st.map((x, i) => {
+    const cls = x ? (x.mean == null ? 'b' : { g: 'g', w: 'w', b: 'b' }[zone(x.mean)]) : (i === cur ? 'cur' : '');
+    return `<span class="${cls}">${STAGE_SHORT[i]} · ${STAGE[i]}${x ? ': ' + (x.mean == null ? 'wandering' : sgn(x.mean) + '¢') : ''}</span>`;
+  }).join('');
+  $('noteStat').textContent = ts.found === 3 ? 'Got all three. Space for the next root.' : 'Sing the root, then the 5th above, then back to the root. Hold each for about a second.';
+}
+
+// ---------- Live trace ----------
+const WINDOW = 10000, trace = [], traceMarks = [];
+function drawTrace(now) {
+  const cv = $('trace'), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue('--' + k).trim();
+  const R = 60, y = c => H / 2 - Math.max(-R, Math.min(R, c)) / R * (H / 2 - 8), x = t => W - (now - t) / WINDOW * W;
+  while (trace.length && now - trace[0].t > WINDOW) trace.shift();
+  while (traceMarks.length && now - traceMarks[0].t - traceMarks[0].play > WINDOW && traceMarks.length > 1) traceMarks.shift();
+  // bands
+  g.fillStyle = col('band'); g.fillRect(0, y(25), W, y(-25) - y(25));
+  g.globalAlpha = 0.35; g.fillStyle = col('good'); g.fillRect(0, y(10), W, y(-10) - y(10)); g.globalAlpha = 1;
+  g.strokeStyle = col('mute'); g.globalAlpha = 0.5; g.lineWidth = 1; g.beginPath(); g.moveTo(0, y(0)); g.lineTo(W, y(0)); g.stroke(); g.globalAlpha = 1;
+  g.fillStyle = col('mute'); g.font = '11px -apple-system,sans-serif';
+  g.fillText('sharp', 6, 14); g.fillText('flat', 6, H - 6); g.fillText('+25¢', W - 34, y(25) - 3); g.fillText('−25¢', W - 34, y(-25) + 12);
+  // note changes + reference playing
+  for (const mk of traceMarks) {
+    const x0 = x(mk.t);
+    if (mk.play) { g.globalAlpha = 0.12; g.fillStyle = col('accent'); g.fillRect(x0, 0, x(mk.t + mk.play) - x0, H); g.globalAlpha = 1; }
+    g.strokeStyle = col('accent'); g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x0, 0); g.lineTo(x0, H); g.stroke(); g.setLineDash([]);
+    g.fillStyle = col('accent'); g.fillText(mk.label, x0 + 4, 26);
+  }
+  // pitch line, coloured by how close it is
+  g.lineWidth = 2.5; g.lineCap = 'round';
+  for (let i = 1; i < trace.length; i++) {
+    const a = trace[i - 1], b = trace[i];
+    if (a.c == null || b.c == null || b.t - a.t > 160) continue;
+    const z = Math.abs(b.c) > 50 ? 'b' : zone(b.c);
+    g.strokeStyle = col({ g: 'good', w: 'warn', b: 'bad' }[z]);
+    g.globalAlpha = b.quiet ? 0.25 : 1;
+    g.beginPath(); g.moveTo(x(a.t), y(a.c)); g.lineTo(x(b.t), y(b.c)); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+
+// ---------- Session ----------
+let sess = null;   // { rec (the stored session), order: [midi], i, cur (current take record) }
+function rootList() {
+  const lo = Math.min(S.lo, S.hi), hi = Math.max(S.lo, S.hi), o = [];
+  for (let m = lo; m <= hi; m += S.step) o.push(m);
+  if (S.order === 'down') o.reverse();
+  else if (S.order === 'shuffle') for (let i = o.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [o[i], o[j]] = [o[j], o[i]]; }
+  return o;
+}
+let wake = null;
+async function startSession() {
+  if (settling) { cancelSettle = true; return; }
+  if (!(await ensureMic())) return;
+  if (isWebKit && !(await settleMic())) return;
+  const order = rootList();
+  const rec = { id: Date.now().toString(36), start: new Date().toISOString(), sound: S.sound, order: S.order, step: S.step, phones: S.phones, lo: Math.min(S.lo, S.hi), hi: Math.max(S.lo, S.hi), notes: [], done: false };
+  store.sessions.push(rec); save();
+  sess = { rec, order, i: -1, cur: null };
+  $('setup').querySelectorAll('select,input,#startBtn').forEach(e => e.disabled = true);
+  $('controls').hidden = false; $('fbRow').hidden = false; $('summary').hidden = true;
+  try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+  nextTake();
+}
+function nextTake() {
+  if (!sess) return;
+  if (sess.i + 1 >= sess.order.length) return finishSession();
+  sess.i++;
+  const m = sess.order[sess.i];
+  sess.cur = { m, r: 0, v: $('usedFb').checked ? 1 : 0, f: [], t0: null };   // v: 1 = used the visual feedback; carries over from the last take
+  sess.rec.notes.push(sess.cur);
+  save();
+  hist3.length = 0;
+  $('target').textContent = `${noteName(m)} → ${noteName(m + 7)} → ${noteName(m)}`;
+  $('noteStat').textContent = '';
+  const last = sess.i + 1 >= sess.order.length;
+  $('nextBtn').innerHTML = (last ? 'Finish ✓' : 'Next root') + '<kbd>Space</kbd>';
+  renderStrip();
+  playRef(m);
+  // timings count from when you can start singing
+  sess.cur.t0 = S.phones ? performance.now() : refEnd;
+  renderStages(takeStats(sess.cur));
+}
+function setFb(on) {
+  $('usedFb').checked = on;
+  if (sess && sess.cur) { sess.cur.v = on ? 1 : 0; save(); }
+}
+function replay() {   // hear the root again and start this take over
+  if (!sess || !sess.cur) return;
+  const T = sess.cur;
+  T.r++; T.f = []; hist3.length = 0;
+  playRef(T.m);
+  T.t0 = S.phones ? performance.now() : refEnd;
+  renderStages(takeStats(T));
+}
+function renderStrip() {
+  if (!sess) { $('strip').innerHTML = ''; return; }
+  $('progress').textContent = `Root ${sess.i + 1} of ${sess.order.length}`;
+  $('strip').innerHTML = sess.order.map((m, i) => {
+    let cls = i === sess.i ? 'cur' : '';
+    if (i < sess.i) { const f = takeStats(sess.rec.notes[i]).found; cls = f === 3 ? 'g' : f ? 'w' : 'b'; }
+    return `<span class="${cls}">${noteName(m)}</span>`;
+  }).join('');
+}
+function finishSession() {
+  if (!sess) return;
+  stopRef();
+  const rec = sess.rec;
+  rec.done = true; rec.end = new Date().toISOString();
+  rec.notes = rec.notes.filter(n => n.f.length);
+  sess = null;
+  $('setup').querySelectorAll('select,input,#startBtn').forEach(e => e.disabled = false);
+  $('controls').hidden = true; $('fbRow').hidden = true;
+  $('target').textContent = '–'; $('playing').textContent = ''; $('noteStat').textContent = ''; $('strip').innerHTML = ''; $('stages').innerHTML = '';
+  if (wake) { wake.release().catch(() => {}); wake = null; }
+  const st = sessionStats(rec);
+  if (!st) {
+    store.sessions = store.sessions.filter(x => x !== rec); save();
+    $('progress').textContent = 'Session ended. Nothing was sung, so it wasn\'t saved.';
+    return;
+  }
+  save();
+  $('progress').textContent = 'Session saved.';
+  renderSummary(rec);
+}
+
+// ---------- Session summary ----------
+const MODES = { blind: 'Blind', checking: 'Checking', partial: 'Partial' };
+const leanCell = v => v == null ? '<td>–</td>' : `<td class="${v <= -10 ? 'fl' : v >= 10 ? 'sh' : ''}">${sgn(v)}¢</td>`;
+function renderSummary(rec) {
+  const st = sessionStats(rec), el = $('summary');
+  const prev = store.sessions.filter(s => s !== rec && s.start < rec.start).map(sessionStats).filter(Boolean).slice(-5);
+  const ins = sessionInsights(st, prev);
+  const tile = (k, name) => `<div class="tile"><b>${st.stages[k].lean == null ? '–' : sgn(st.stages[k].lean) + '¢'}</b><span>${name} · ${st.stages[k].on == null ? 'n/a' : st.stages[k].on + '% on pitch'}</span></div>`;
+  el.innerHTML = `
+    <h2>Session · ${fullDate(rec.start)} · ${noteName(rec.lo)}–${noteName(rec.hi)}${st.mode ? ' · ' + MODES[st.mode] : ''}</h2>
+    <div class="tiles">
+      ${tile(0, '1st root')}${tile(1, '5th')}${tile(2, 'return root')}
+      <div class="tile"><b>${st.width == null ? '–' : sgn(st.width) + '¢'}</b><span>5th size vs your 1st root (+ wide, − narrow)</span></div>
+      <div class="tile"><b>${st.drift == null ? '–' : sgn(st.drift) + '¢'}</b><span>return vs where you started</span></div>
+    </div>
+    <h2>What I tried</h2>
+    <textarea id="sessNote" rows="2" style="width:100%;font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)" placeholder="e.g. thought higher, breathed from the belly">${esc(rec.note || '')}</textarea>
+    <h2 style="margin-top:14px">What stood out</h2>
+    <ul class="ins">${ins.map(x => `<li>${x}</li>`).join('')}</ul>
+    <h2 style="margin-top:14px">Lean on each note</h2>
+    <div id="sumChart"></div>
+    <div class="legend"><span><i style="background:var(--s1)"></i>1st root</span><span><i style="background:var(--s2)"></i>5th</span><span><i style="background:var(--s3)"></i>return root</span><span><i style="background:var(--band)"></i>±10¢ / ±25¢</span></div>
+    <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--mute);font-size:14px">Take by take</summary>
+      <div style="overflow-x:auto"><table class="sl" style="margin-top:8px"><tr><th>Root</th><th>Feedback</th><th>1st root</th><th>5th</th><th>Return</th><th>5th size</th><th>Return vs start</th></tr>
+      ${st.takes.map(t => `<tr><td>${noteName(t.m)}</td><td>${t.fb == null ? '–' : t.fb ? 'checking' : 'blind'}</td>${[0, 1, 2].map(k => leanCell(t.st[k] ? t.st[k].mean : null)).join('')}${leanCell(t.width)}${leanCell(t.drift)}</tr>`).join('')}
+      </table></div></details>
+    <div class="row" style="margin:14px 0 0"><button id="discardBtn">Discard this session</button></div>`;
+  el.hidden = false;
+  multiLine($('sumChart'), 'lean', st.takes.map(t => ({ label: noteName(t.m), v: [0, 1, 2].map(k => t.st[k] ? t.st[k].mean : null), tip: `${noteName(t.m)}: ` + [0, 1, 2].map(k => `${STAGE[k]} ${t.st[k] ? (t.st[k].mean == null ? 'wandering' : sgn(t.st[k].mean) + '¢') : 'not heard'}`).join(' · ') })));
+  $('sessNote').onchange = () => { rec.note = $('sessNote').value.trim(); save(); };
+  $('discardBtn').onclick = () => {
+    if (!confirm('Discard this session? It won\'t count in your history.')) return;
+    store.sessions = store.sessions.filter(x => x !== rec); save();
+    el.hidden = true; $('progress').textContent = 'Session discarded.';
+  };
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function sessionInsights(st, prev) {
+  const out = [];
+  const [a, b, c] = st.stages;
+  if (a.lean != null && b.lean != null && c.lean != null) {
+    out.push(`Average lean: <b>${lean(a.lean)}</b> on the first root, <b>${lean(b.lean)}</b> on the 5th, <b>${lean(c.lean)}</b> coming back to the root.`);
+  } else for (const [k, x] of [[0, a], [1, b], [2, c]]) if (x.lean != null) out.push(`${STAGE[k][0].toUpperCase() + STAGE[k].slice(1)}: ${lean(x.lean)}.`);
+  if (st.width != null) out.push(Math.abs(st.width) < 8
+    ? `Your 5th was about the right size above where you started (${sgn(st.width)}¢).`
+    : `Your 5th was <b>${Math.abs(Math.round(st.width))}¢ ${st.width < 0 ? 'narrow' : 'wide'}</b> measured from the root you sang, so you ${st.width < 0 ? 'stopped short of' : 'overshot'} the interval.`);
+  if (st.drift != null) out.push(Math.abs(st.drift) < 8
+    ? `You came back to where you started (${sgn(st.drift)}¢).`
+    : `Coming back down you landed <b>${Math.abs(Math.round(st.drift))}¢ ${st.drift < 0 ? 'below' : 'above'}</b> where you started.`);
+  for (const [k, x] of [[1, b], [0, a]]) if (x.onset != null && Math.abs(x.onset) >= 12 && k === 1)
+    out.push(x.onset < 0 ? `You tend to <b>come in under the 5th and slide up</b> to it (${Math.round(-x.onset)}¢ under at the start).` : `You tend to <b>come in above the 5th and drop</b> (${Math.round(x.onset)}¢ over at the start).`);
+  const worst = st.takes.flatMap(t => [0, 1, 2].filter(k => t.st[k] && t.st[k].mean != null).map(k => ({ t, k, v: t.st[k].mean }))).filter(x => Math.abs(x.v) >= 25).sort((x, y) => Math.abs(y.v) - Math.abs(x.v)).slice(0, 3);
+  if (worst.length) out.push(`Furthest out: ${worst.map(x => `${noteName(x.t.m)} ${STAGE[x.k]} (${lean(x.v)})`).join(', ')}.`);
+  if (st.complete < st.takes.length) out.push(`I could hear all three notes in ${st.complete} of ${st.takes.length} takes. The others are missing a note, usually because it was too quiet or too short (under about a quarter of a second).`);
+  const re = st.takes.filter(t => t.replays > 0);
+  if (re.length) out.push(`You restarted ${re.length === 1 ? 'one take' : re.length + ' takes'}: ${re.map(t => noteName(t.m)).join(', ')}.`);
+  if (prev.length) {
+    const p = Math.round(avg(prev.map(x => x.on))), d = st.on - p;
+    out.push(`On pitch ${st.on}% against ${p}% over your last ${prev.length === 1 ? 'session' : prev.length + ' sessions'}${Math.abs(d) >= 3 ? ` (<b>${d > 0 ? 'up' : 'down'} ${Math.abs(d)}</b>)` : ', about the same'}.`);
+  }
+  return out;
+}
+
+// ---------- Charts ----------
+// Lean is diverging: flat (blue) below the line, sharp (red) above, grey ±10¢ band, lighter ±25¢ band, fixed ±50¢ scale.
+function leanChart(el, items) {
+  if (!items.length) { el.innerHTML = '<p class="empty">Nothing to show yet.</p>'; return; }
+  const W = Math.max(280, el.clientWidth || 600), H = 200, L = 40, Rp = 8, T = 12, B = 24;
+  const vals = items.map(i => i.v).filter(v => v != null);
+  const max = 50;   // fixed ±50¢ on every lean chart (same span as the live meter) so charts compare over time
+  const y = v => T + (H - T - B) / 2 * (1 - Math.max(-max, Math.min(max, v)) / max);
+  const slot = (W - L - Rp) / items.length, bw = Math.max(3, Math.min(26, slot * 0.6));
+  const every = Math.max(1, Math.ceil(items.length * 32 / (W - L)));
+  let s = `<rect x="${L}" y="${y(25)}" width="${W - L - Rp}" height="${y(-25) - y(25)}" fill="var(--band)" opacity="0.5"/>`;
+  s += `<rect x="${L}" y="${y(10)}" width="${W - L - Rp}" height="${y(-10) - y(10)}" fill="var(--band)"/>`;
+  for (const v of [50, 25, -25, -50]) s += `<line x1="${L}" x2="${W - Rp}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${sgn(v)}¢</text>`;
+  s += `<text x="${L - 6}" y="${y(0) + 4}" text-anchor="end">0</text>`;
+  items.forEach((it, i) => {
+    const cx = L + slot * (i + 0.5);
+    if (it.v != null) {
+      const y0 = y(0), y1 = y(it.v), h = Math.max(1.5, Math.abs(y1 - y0));
+      s += `<rect x="${cx - bw / 2}" y="${Math.min(y0, y1)}" width="${bw}" height="${h}" rx="2" fill="${it.v < 0 ? 'var(--flat)' : 'var(--sharp)'}"/>`;
+    } else s += `<text x="${cx}" y="${y(0) - 4}" text-anchor="middle">×</text>`;
+    if (i % every === 0) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(it.label)}</text>`;
+    s += `<rect x="${cx - slot / 2}" y="0" width="${slot}" height="${H}" fill="transparent" data-tip="${esc(it.tip)}"/>`;
+  });
+  s += `<line x1="${L}" x2="${W - Rp}" y1="${y(0)}" y2="${y(0)}" stroke="var(--mute)" stroke-width="1"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average lean per item in cents">${s}</svg>`;
+}
+// Three lines (1st root, 5th, return root). Lean is a fixed ±50¢ scale, on pitch is 0-100%.
+function multiLine(el, kind, pts) {
+  if (!pts.length) { el.innerHTML = '<p class="empty">Nothing to show yet.</p>'; return; }
+  const W = Math.max(280, el.clientWidth || 600), H = 200, L = 40, Rp = 14, T = 12, B = 24;
+  const lean_ = kind === 'lean', max = 50;
+  const x = i => pts.length === 1 ? (L + W - Rp) / 2 : L + (W - L - Rp) * i / (pts.length - 1);
+  const y = v => lean_ ? T + (H - T - B) / 2 * (1 - Math.max(-max, Math.min(max, v)) / max) : T + (H - T - B) * (1 - v / 100);
+  let s = '';
+  if (lean_) {
+    s += `<rect x="${L}" y="${y(25)}" width="${W - L - Rp}" height="${y(-25) - y(25)}" fill="var(--band)" opacity="0.5"/><rect x="${L}" y="${y(10)}" width="${W - L - Rp}" height="${y(-10) - y(10)}" fill="var(--band)"/>`;
+    for (const v of [50, 25, -25, -50]) s += `<line x1="${L}" x2="${W - Rp}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${sgn(v)}¢</text>`;
+    s += `<line x1="${L}" x2="${W - Rp}" y1="${y(0)}" y2="${y(0)}" stroke="var(--mute)"/><text x="${L - 6}" y="${y(0) + 4}" text-anchor="end">0</text>`;
+  } else for (const v of [0, 50, 100]) s += `<line x1="${L}" x2="${W - Rp}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`;
+  const every = Math.max(1, Math.ceil(pts.length * 40 / (W - L)));
+  const mark = (k, cx, cy) => k === 0 ? `<circle cx="${cx}" cy="${cy}" r="4"` : k === 1 ? `<rect x="${cx - 3.5}" y="${cy - 3.5}" width="7" height="7"` : `<path d="M${cx} ${cy - 5}L${cx + 5} ${cy}L${cx} ${cy + 5}L${cx - 5} ${cy}Z"`;
+  for (let k = 0; k < 3; k++) {
+    let d = '', pen = false;
+    pts.forEach((p, i) => { if (p.v[k] == null) { pen = false; return; } d += (pen ? 'L' : 'M') + x(i) + ' ' + y(p.v[k]); pen = true; });
+    s += `<path d="${d}" fill="none" stroke="var(--s${k + 1})" stroke-width="2" stroke-linejoin="round"/>`;
+    pts.forEach((p, i) => { if (p.v[k] != null) s += `${mark(k, x(i), y(p.v[k]))} fill="var(--s${k + 1})" stroke="var(--card)" stroke-width="1.5"/>`; });
+  }
+  const slot = pts.length > 1 ? (W - L - Rp) / (pts.length - 1) : 40;
+  pts.forEach((p, i) => {
+    if (i % every === 0 || i === pts.length - 1) s += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(p.label)}</text>`;
+    s += `<rect x="${x(i) - slot / 2}" y="0" width="${slot}" height="${H}" fill="transparent" data-tip="${esc(p.tip)}"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${lean_ ? 'Lean' : 'On pitch'} on each note">${s}</svg>`;
+}
+
+// tooltips
+document.addEventListener('pointermove', e => {
+  const t = e.target.closest && e.target.closest('[data-tip]'), tip = $('tip');
+  if (!t) { tip.hidden = true; return; }
+  tip.textContent = t.getAttribute('data-tip'); tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(window.innerWidth - r.width - 8, e.clientX + 12) + 'px';
+  tip.style.top = Math.max(8, e.clientY - r.height - 10) + 'px';
+});
+
+// ---------- History ----------
+let histMode = 'all';
+function renderHistory() {
+  const allRows = store.sessions.filter(s => s.done).map(s => ({ s, st: sessionStats(s) })).filter(r => r.st);
+  const count = m => m === 'all' ? allRows.length : allRows.filter(r => r.st.mode === m).length;
+  $('histFilter').innerHTML = ['all', 'blind', 'checking', 'partial'].map(m => `<button data-mode="${m}"${m === histMode ? ' class="on"' : ''}>${m === 'all' ? 'All' : MODES[m]} (${count(m)})</button>`).join('');
+  $('filterHint').textContent = {
+    all: 'Blind = sang without looking at the feedback. Checking = used it on every take. Partial = a bit of both in one session. Tick the box on the Practise screen for each take.',
+    blind: 'Sessions where you never used the visual feedback.',
+    checking: 'Sessions where you used the visual feedback on every take.',
+    partial: 'Sessions where you used the feedback on some takes and not others.',
+  }[histMode];
+  const rows = histMode === 'all' ? allRows : allRows.filter(r => r.st.mode === histMode);
+  if (!rows.length) {
+    $('histTop').innerHTML = `<h2>Your progress</h2><p class="empty">${allRows.length ? `No ${MODES[histMode].toLowerCase()} sessions yet.` : 'No sessions yet. Sing one and it will show up here.'}</p>`;
+    ['chLean', 'chStages', 'chOn', 'byRoot', 'sessList'].forEach(id => $(id).innerHTML = '<p class="empty">Nothing to show yet.</p>');
+    return;
+  }
+  const takes = rows.flatMap(r => r.st.takes);
+  // across every take: the lean on each note
+  const stageLean = k => { const v = takes.filter(t => t.st[k] && t.st[k].mean != null).map(t => t.st[k].mean); return v.length ? avg(v) : null; };
+  const sl = [0, 1, 2].map(stageLean);
+
+  const ins = [];
+  const mins = Math.round(rows.reduce((x, r) => x + r.st.takes.reduce((y, t) => y + t.st.reduce((z, q) => z + (q ? q.secs : 0), 0), 0), 0) / 60);
+  ins.push(`${rows.length} session${rows.length === 1 ? '' : 's'}, ${takes.length} take${takes.length === 1 ? '' : 's'} (${takes.filter(t => t.found === 3).length} with all three notes heard), ${mins < 1 ? 'under a minute' : mins + ' min'} of held singing measured.`);
+  if (sl.every(v => v != null)) ins.push(`Average lean: <b>${lean(sl[0])}</b> on the first root, <b>${lean(sl[1])}</b> on the 5th, <b>${lean(sl[2])}</b> on the return to the root.`);
+  const flatCount = k => { const v = rows.map(r => r.st.stages[k].lean).filter(x => x != null); return v.length ? `${v.filter(x => x < 0).length} of ${v.length}` : null; };
+  if (flatCount(1)) ins.push(`The 5th was flat in ${flatCount(1)} sessions; the return root was flat in ${flatCount(2) || 'none'}.`);
+  const ds = takes.map(t => t.drift).filter(x => x != null), ws = takes.map(t => t.width).filter(x => x != null);
+  if (ds.length >= 3) { const d = avg(ds); ins.push(Math.abs(d) < 8 ? `Coming back down you land about where you started (${sgn(d)}¢).` : `Coming back down you land on average <b>${Math.abs(Math.round(d))}¢ ${d < 0 ? 'below' : 'above'}</b> where you started.`); }
+  if (ws.length >= 3) { const w = avg(ws); if (Math.abs(w) >= 8) ins.push(`Your 5th is on average <b>${Math.abs(Math.round(w))}¢ ${w < 0 ? 'narrow' : 'wide'}</b> measured from the root you sang.`); }
+  if (rows.length >= 4) {
+    const k = Math.min(3, Math.floor(rows.length / 2));
+    const a = avg(rows.slice(-k).map(r => r.st.on)), b = avg(rows.slice(-2 * k, -k).map(r => r.st.on)), d = Math.round(a - b);
+    ins.push(`Your last ${k} sessions averaged <b>${Math.round(a)}%</b> on pitch, against ${Math.round(b)}% for the ${k} before${Math.abs(d) >= 3 ? ` (<b>${d > 0 ? 'up' : 'down'} ${Math.abs(d)}</b>)` : ', about the same'}.`);
+  }
+  if (histMode === 'all') {   // take by take: blind against checking, note by note
+    const bl = takes.filter(t => t.fb === false), ck = takes.filter(t => t.fb === true);
+    if (bl.length >= 3 && ck.length >= 3) {
+      const line = g => [0, 1, 2].map(k => { const v = g.filter(t => t.st[k] && t.st[k].mean != null).map(t => t.st[k].mean); return v.length ? sgn(avg(v)) + '¢' : '–'; }).join(' / ');
+      const on = g => Math.round(avg(g.flatMap(t => t.st.filter(Boolean).map(q => q.on))));
+      ins.push(`Take by take, lean on 1st root / 5th / return: <b>${line(bl)}</b> blind (${bl.length} takes, ${on(bl)}% on pitch) against <b>${line(ck)}</b> when checking (${ck.length} takes, ${on(ck)}% on pitch).`);
+    }
+  }
+  $('histTop').innerHTML = `<h2>Your progress</h2><ul class="ins">${ins.map(x => `<li>${x}</li>`).join('')}</ul>`;
+
+  const lbl = r => ddmm(r.s.start);
+  multiLine($('chLean'), 'lean', rows.map(r => ({ label: lbl(r), v: r.st.stages.map(x => x.lean), tip: `${fullDate(r.s.start)}: ` + r.st.stages.map((x, k) => `${STAGE[k]} ${x.lean == null ? 'n/a' : lean(x.lean)}`).join(' · ') })));
+  multiLine($('chOn'), 'pct', rows.map(r => ({ label: lbl(r), v: r.st.stages.map(x => x.on), tip: `${fullDate(r.s.start)}: ` + r.st.stages.map((x, k) => `${STAGE[k]} ${x.on == null ? 'n/a' : x.on + '%'}`).join(' · ') })));
+  leanChart($('chStages'), [0, 1, 2].map(k => ({ v: sl[k], label: STAGE[k], tip: `${STAGE[k]}: ${sl[k] == null ? 'n/a' : lean(sl[k])}, over ${takes.filter(t => t.st[k]).length} takes` })));
+
+  const per = new Map();
+  for (const t of takes) { if (!per.has(t.m)) per.set(t.m, []); per.get(t.m).push(t); }
+  const cell = (g, k) => { const v = g.filter(t => t.st[k] && t.st[k].mean != null).map(t => t.st[k].mean); return v.length ? leanCell(avg(v)) : '<td>–</td>'; };
+  $('byRoot').innerHTML = `<div style="overflow-x:auto"><table class="sl"><tr><th>Root</th><th>Takes</th><th>1st root</th><th>5th</th><th>Return</th></tr>${
+    [...per.entries()].sort((a, b) => a[0] - b[0]).map(([m, g]) => `<tr><td>${noteName(m)} → ${noteName(m + 7)}</td><td>${g.length}</td>${cell(g, 0)}${cell(g, 1)}${cell(g, 2)}</tr>`).join('')
+  }</table></div><p class="hint" style="margin:8px 0 0">Average lean, across all the takes shown. Blue is flat, red is sharp (10¢ or more).</p>`;
+
+  $('sessList').innerHTML = `<div style="overflow-x:auto"><table class="sl"><tr><th>When · mode · range</th><th>1st root</th><th>5th</th><th>Return</th><th>On pitch</th><th></th></tr>${
+    [...rows].reverse().map(({ s, st }) => `<tr><td><a href="#" data-open="${s.id}">${ddmm(s.start)} ${fullDate(s.start).slice(-5)}</a><br><span style="font-size:11.5px;color:var(--mute)">${st.mode ? MODES[st.mode] : 'Not recorded'} · ${noteName(s.lo)}–${noteName(s.hi)}${s.order === 'down' ? '↓' : s.order === 'shuffle' ? '⇄' : '↑'}</span>${s.note ? `<br><span style="font-size:12.5px">📝 ${esc(s.note)}</span>` : ''}</td>${st.stages.map(x => leanCell(x.lean)).join('')}<td>${st.on}%</td><td class="x"><button data-del="${s.id}" title="Delete this session">✕</button></td></tr>`).join('')
+  }</table></div>`;
+}
+$('histFilter').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]'); if (!b) return;
+  histMode = b.dataset.mode; renderHistory();
+});
+$('sessList').addEventListener('click', e => {
+  const o = e.target.closest('[data-open]'), d = e.target.closest('[data-del]');
+  if (o) { e.preventDefault(); const s = store.sessions.find(x => x.id === o.dataset.open); showTab('practise'); renderSummary(s); }
+  if (d) {
+    const s = store.sessions.find(x => x.id === d.dataset.del);
+    if (s && confirm(`Delete the session from ${fullDate(s.start)}? This can't be undone.`)) { store.sessions = store.sessions.filter(x => x !== s); save(); renderHistory(); }
+  }
+});
+
+$('exportBtn').onclick = () => {
+  const d = new Date(), name = `singing-151-sessions-${d.toISOString().slice(0, 10)}.json`;
+  const blob = new Blob([JSON.stringify({ app: 'singing-151', v: 1, exported: d.toISOString(), sessions: store.sessions.filter(s => s.done) })], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('importFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text()), have = new Set(store.sessions.map(s => s.id));
+    if (data.app !== 'singing-151') throw new Error('wrong file');
+    const add = (data.sessions || []).filter(s => s && s.id && Array.isArray(s.notes) && !have.has(s.id)).map(s => ({ ...s, done: true }));
+    store.sessions.push(...add); store.sessions.sort((a, b) => a.start < b.start ? -1 : 1); save(); renderHistory();
+    alert(`Imported ${add.length} session${add.length === 1 ? '' : 's'}${add.length ? '' : ' (they were all here already)'}.`);
+  } catch (err) { alert('That file couldn\'t be read as a 1-5-1 sessions export.'); }
+  e.target.value = '';
+};
+
+// ---------- Wiring ----------
+function showTab(t) {
+  document.querySelectorAll('.tabs button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('practise').hidden = t !== 'practise'; $('history').hidden = t !== 'history';
+  if (t === 'history') renderHistory();
+}
+document.querySelectorAll('.tabs button[data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('startBtn').onclick = startSession;
+$('nextBtn').onclick = nextTake;
+$('replayBtn').onclick = replay;
+$('usedFb').onchange = e => { setFb(e.target.checked); e.target.blur(); };
+$('finishBtn').onclick = finishSession;
+$('tunerBtn').onclick = async () => { if (micOn && !sess) micOff(); else await ensureMic(); };
+document.addEventListener('keydown', e => {
+  if (!sess || e.metaKey || e.ctrlKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  // blur first: a focused button would otherwise fire its own click on keyup and skip a take
+  if (document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
+  if (e.code === 'Space') { e.preventDefault(); nextTake(); }
+  else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); replay(); }
+  else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFb(!$('usedFb').checked); }
+});
+// keep what's been sung if the tab is closed mid-session
+addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!$('history').hidden) renderHistory(); }, 200); });
+</script>
+</body>
+</html>
