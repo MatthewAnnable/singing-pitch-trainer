@@ -95,7 +95,7 @@
 <body>
 <main>
   <h1>Singing Pitch Trainer</h1>
-  <p class="sub">Hear a note, sing it, hold it. Every session is saved, so you can see which way you lean and whether it's improving.</p>
+  <p class="sub">Hear a note, sing it, hold it. Every session is saved, so you can see which way you lean and whether it's improving. <a href="one-five-one.html" style="color:var(--accent)">1–5–1 version →</a></p>
   <nav class="tabs"><button data-tab="practise" class="on">Practise</button><button data-tab="history">History</button></nav>
 
   <section id="practise">
@@ -650,7 +650,9 @@ function renderSummary(rec) {
       <div class="tile"><b>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</b><span>average lean (${st.lean == null ? 'n/a' : st.lean < 0 ? 'flat' : 'sharp'})</span></div>
       <div class="tile"><b>${finds.length ? median(finds).toFixed(1) + 's' : '–'}</b><span>to find the note (median)</span></div>
     </div>
-    <h2>What stood out</h2>
+    <h2>What I tried</h2>
+    <textarea id="sessNote" rows="2" style="width:100%;font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)" placeholder="e.g. thought higher, breathed from the belly">${esc(rec.note || '')}</textarea>
+    <h2 style="margin-top:14px">What stood out</h2>
     <ul class="ins">${ins.map(x => `<li>${x}</li>`).join('')}</ul>
     <h2 style="margin-top:14px">Lean on each note</h2>
     <div id="sumChart"></div>
@@ -662,6 +664,7 @@ function renderSummary(rec) {
     <div class="row" style="margin:14px 0 0"><button id="discardBtn">Discard this session</button></div>`;
   el.hidden = false;
   leanChart($('sumChart'), st.notes.map(n => ({ label: noteName(n.m), v: n.st.mean, tip: `${noteName(n.m)}: ${n.st.mean == null ? 'mostly off the note' : lean(n.st.mean)} · ${n.st.on}% on pitch` })));
+  $('sessNote').onchange = () => { rec.note = $('sessNote').value.trim(); save(); };
   $('discardBtn').onclick = () => {
     if (!confirm('Discard this session? It won\'t count in your history.')) return;
     store.sessions = store.sessions.filter(x => x !== rec); save();
@@ -812,7 +815,7 @@ function renderHistory() {
   leanChart($('chNotes'), notes.map(n => ({ v: n.v, label: noteName(n.m), tip: `${noteName(n.m)}: ${lean(n.v)}, ${Math.round(n.on)}% on pitch, over ${n.k} session${n.k === 1 ? '' : 's'}` })));
 
   $('sessList').innerHTML = `<div style="overflow-x:auto"><table class="sl"><tr><th>When · mode · range</th><th>On pitch</th><th>Spot on</th><th>Found in</th><th>Lean</th><th></th></tr>${
-    [...rows].reverse().map(({ s, st }) => `<tr><td><a href="#" data-open="${s.id}">${ddmm(s.start)} ${fullDate(s.start).slice(-5)}</a><br><span style="font-size:11.5px;color:var(--mute)">${st.mode ? MODES[st.mode] : 'Not recorded'} · ${noteName(s.lo)}–${noteName(s.hi)}${s.dir === 'down' ? '↓' : '↑'}</span></td><td>${st.on}%</td><td>${st.spot}%</td><td>${(f => f.length ? median(f).toFixed(1) + 's' : '–')(st.notes.map(n => n.st.find).filter(x => x != null))}</td><td>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</td><td class="x"><button data-del="${s.id}" title="Delete this session">✕</button></td></tr>`).join('')
+    [...rows].reverse().map(({ s, st }) => `<tr><td><a href="#" data-open="${s.id}">${ddmm(s.start)} ${fullDate(s.start).slice(-5)}</a><br><span style="font-size:11.5px;color:var(--mute)">${st.mode ? MODES[st.mode] : 'Not recorded'} · ${noteName(s.lo)}–${noteName(s.hi)}${s.dir === 'down' ? '↓' : '↑'}</span>${s.note ? `<br><span style="font-size:12.5px">📝 ${esc(s.note)}</span>` : ''}</td><td>${st.on}%</td><td>${st.spot}%</td><td>${(f => f.length ? median(f).toFixed(1) + 's' : '–')(st.notes.map(n => n.st.find).filter(x => x != null))}</td><td>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</td><td class="x"><button data-del="${s.id}" title="Delete this session">✕</button></td></tr>`).join('')
   }</table></div>`;
 }
 $('histFilter').addEventListener('click', e => {
