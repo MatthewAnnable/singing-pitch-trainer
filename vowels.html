@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Singing Vowel Trainer</title>
+<style>
+  :root {
+    --bg:#faf7f2; --ink:#1d1b19; --mute:#7a746b; --card:#fff; --line:#e4ddd0; --accent:#8a4b1f; --chip:#f1ebe1;
+    --good:#0ca30c; --warn:#d99a00; --bad:#d03b3b; --flat:#2a78d6; --sharp:#d03b3b; --band:#f0efec; --grid:#ece6dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#181614; --ink:#f0ebe3; --mute:#9c958a; --card:#23201d; --line:#3a352f; --accent:#e0a064; --chip:#2e2a26;
+      --good:#0ca30c; --warn:#fab219; --bad:#e0605a; --flat:#3987e5; --sharp:#e0605a; --band:#383835; --grid:#33302b;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  .sub { color:var(--mute); font-size:14px; margin:0 0 14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .tabs { display:flex; gap:6px; margin-bottom:14px; }
+  .tabs button { border-radius:999px; }
+  .tabs button.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+  button, .btn { font:inherit; font-size:15px; padding:9px 14px; border-radius:10px; border:1px solid var(--line); background:var(--chip); color:var(--ink); cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  button.big { font-size:17px; padding:12px 20px; }
+  kbd { font:12px ui-monospace,Menlo,monospace; opacity:.7; margin-left:4px; }
+  .row { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; margin-bottom:12px; }
+  label { font-size:14px; color:var(--mute); display:flex; align-items:center; gap:6px; }
+  select { font:inherit; font-size:15px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  input[type=range] { width:120px; }
+  .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
+  .msg { color:var(--mute); font-size:13px; margin:8px 0 0; min-height:1em; }
+
+  /* live view */
+  .progress { font-size:13px; color:var(--mute); margin-bottom:6px; min-height:1em; }
+  .strip { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px; }
+  .strip span { font-size:12px; padding:2px 6px; border-radius:6px; background:var(--chip); color:var(--mute); border:1px solid transparent; }
+  .strip span.cur { border-color:var(--accent); color:var(--ink); font-weight:600; }
+  .strip span.g { box-shadow:inset 0 -3px 0 var(--good); color:var(--ink); }
+  .strip span.w { box-shadow:inset 0 -3px 0 var(--warn); color:var(--ink); }
+  .strip span.b { box-shadow:inset 0 -3px 0 var(--bad); color:var(--ink); }
+  .notes { display:grid; grid-template-columns:1fr 1fr; gap:12px; text-align:center; margin-bottom:10px; }
+  .lbl { font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mute); }
+  .target, .heard { font-size:52px; font-weight:700; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .heard { color:var(--mute); }
+  .heard.g { color:var(--good); } .heard.w { color:var(--warn); } .heard.b { color:var(--bad); }
+  .cents { font-size:15px; color:var(--mute); min-height:1.3em; font-variant-numeric:tabular-nums; }
+  .playing { font-size:13px; color:var(--accent); min-height:1.2em; }
+
+  .meter { position:relative; height:34px; border-radius:8px; background:var(--band); overflow:hidden; margin:6px 0 4px; }
+  .meter .z { position:absolute; top:0; bottom:0; }
+  .meter .tick { position:absolute; top:0; bottom:0; width:1px; background:var(--line); }
+  .meter .mid { position:absolute; top:0; bottom:0; left:50%; width:2px; margin-left:-1px; background:var(--ink); opacity:.5; }
+  #needle { position:absolute; top:3px; bottom:3px; width:6px; margin-left:-3px; border-radius:3px; background:var(--ink); left:50%; opacity:0; transition:opacity .2s; }
+  .meterlbl { display:flex; justify-content:space-between; font-size:13px; color:var(--mute); margin-bottom:10px; }
+  #verdict { font-weight:600; color:var(--ink); }
+  canvas { width:100%; height:200px; display:block; border-radius:8px; background:var(--card); }
+  .notestat { font-size:14px; margin:8px 0 0; min-height:1.3em; font-variant-numeric:tabular-nums; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .controls .primary { flex:1 1 180px; }
+  .level { height:4px; background:var(--chip); border-radius:2px; overflow:hidden; margin-top:12px; }
+  #level { height:100%; width:0; background:var(--accent); }
+
+  /* summary + history */
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:14px; }
+  .tile { background:var(--chip); border-radius:10px; padding:10px 12px; }
+  .tile b { display:block; font-size:26px; font-variant-numeric:tabular-nums; }
+  .tile span { font-size:12px; color:var(--mute); }
+  ul.ins { margin:0 0 6px; padding-left:18px; }
+  ul.ins li { margin:0 0 6px; }
+  svg text { fill:var(--mute); font-size:11px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  svg { display:block; width:100%; height:auto; }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--mute); margin-top:6px; }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums; }
+  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
+  th { font-size:12px; color:var(--mute); font-weight:500; }
+  td.x { text-align:right; }
+  td.x button { padding:2px 8px; font-size:13px; }
+  .tip { position:fixed; pointer-events:none; background:var(--ink); color:var(--bg); font-size:12px; padding:6px 8px; border-radius:6px; max-width:240px; z-index:10; }
+  table.sl { font-size:12.5px; }
+  table.sl td { white-space:nowrap; }
+  table.sl td.x button { padding:2px 6px; }
+  table.sl th, table.sl td { padding-left:3px; padding-right:3px; }
+  table.sl th, table.sl td { padding-left:4px; padding-right:4px; }
+  .empty { color:var(--mute); font-size:14px; }
+  [hidden] { display:none !important; }
+  .vowel { font-size:46px; font-weight:700; line-height:1.1; color:var(--accent); min-height:1.1em; }
+  .nextv { font-size:13px; color:var(--mute); min-height:1.2em; }
+  input[type=text] { font:inherit; font-size:15px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  .stages { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .stages span { flex:1 1 60px; text-align:center; font-size:13px; padding:6px 4px; border-radius:8px; background:var(--chip); color:var(--mute); border:1px solid transparent; font-variant-numeric:tabular-nums; }
+  .stages span.cur { border-color:var(--accent); color:var(--ink); font-weight:600; }
+  .stages span.g { box-shadow:inset 0 -3px 0 var(--good); color:var(--ink); }
+  .stages span.w { box-shadow:inset 0 -3px 0 var(--warn); color:var(--ink); }
+  .stages span.b { box-shadow:inset 0 -3px 0 var(--bad); color:var(--ink); }
+  table.grid { font-size:12.5px; }
+  table.grid th, table.grid td { text-align:center; padding:5px 3px; white-space:nowrap; }
+  table.grid th:first-child, table.grid td:first-child { text-align:left; font-weight:600; color:var(--ink); }
+  table.grid td.c { border-radius:4px; border-bottom:2px solid var(--card); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Singing Vowel Trainer</h1>
+  <p class="sub">Hear a note, then sing it once on each vowel, in the order you choose. It tells you which vowel is next, and keeps track of which vowels you tend to sing flat or sharp. <a href="index.html" style="color:var(--accent)">Single-note ladder →</a> <a href="one-five-one.html" style="color:var(--accent);margin-left:8px">1–5–1 →</a></p>
+  <nav class="tabs"><button data-tab="practise" class="on">Practise</button><button data-tab="history">History</button></nav>
+
+  <section id="practise">
+    <div class="card" id="setup">
+      <div class="row">
+        <label style="flex:1 1 100%">Vowels, in order <input type="text" id="vowels" style="flex:1;min-width:0" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      </div>
+      <p class="hint" id="vowelHint"></p>
+      <div class="row">
+        <label>From <select id="lo"></select></label>
+        <label>To <select id="hi"></select></label>
+        <label>Go <select id="dir"><option value="up">up ↑</option><option value="down">down ↓</option></select></label>
+        <label>Sound <select id="sound"><option value="piano">Piano</option><option value="guitar">Guitar</option></select></label>
+      </div>
+      <div class="row">
+        <label>Hold each vowel <select id="hold"><option value="1">1s</option><option value="1.5">1.5s</option><option value="2">2s</option><option value="3">3s</option></select></label>
+        <label>Vowel order <select id="vorder"><option value="same">the same on every note</option><option value="rotate">start one later on each note</option></select></label>
+        <label><input type="checkbox" id="auto"> Move on by itself when I stop</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="anyoct"> Any octave counts</label>
+        <label><input type="checkbox" id="phones"> I'm wearing headphones</label>
+        <label>Mic sensitivity <input type="range" id="gate" min="0" max="100"></label>
+      </div>
+      <p class="hint" id="phonesHint"></p>
+      <div class="row" style="margin:0">
+        <button class="primary big" id="startBtn">Start session</button>
+        <button id="tunerBtn">Just the tuner</button>
+      </div>
+    </div>
+
+    <div class="card" id="live">
+      <div class="progress" id="progress">Not started.</div>
+      <div class="strip" id="strip"></div>
+      <div class="stages" id="vstrip"></div>
+      <div class="notes">
+        <div><div class="lbl">Sing</div><div class="target" id="target">–</div><div class="vowel" id="vowel"></div><div class="playing" id="playing"></div></div>
+        <div><div class="lbl">You</div><div class="heard" id="heard">–</div><div class="cents" id="cents"></div><div class="nextv" id="nextv"></div></div>
+      </div>
+      <div class="meter" id="meter">
+        <div class="z" style="left:25%;width:50%;background:color-mix(in srgb,var(--warn) 22%,transparent)"></div>
+        <div class="z" style="left:40%;width:20%;background:color-mix(in srgb,var(--good) 30%,transparent)"></div>
+        <div class="tick" style="left:10%"></div><div class="tick" style="left:30%"></div><div class="tick" style="left:70%"></div><div class="tick" style="left:90%"></div>
+        <div class="mid"></div><div id="needle"></div>
+      </div>
+      <div class="meterlbl"><span>♭ flat</span><span id="verdict"></span><span>sharp ♯</span></div>
+      <canvas id="trace"></canvas>
+      <div class="notestat" id="noteStat"></div>
+      <div class="row" id="fbRow" hidden style="margin:12px 0 0"><label><input type="checkbox" id="usedFb"> I'm using the visual feedback on this vowel<kbd>F</kbd></label></div>
+      <div class="controls" id="controls" hidden>
+        <button id="replayBtn">🔁 Hear again, redo this vowel<kbd>R</kbd></button>
+        <button class="primary big" id="nextBtn">Next vowel<kbd>Space</kbd></button>
+        <button id="finishBtn">Finish</button>
+      </div>
+      <div class="level"><div id="level"></div></div>
+      <p class="msg" id="msg"></p>
+    </div>
+
+    <div class="card" id="summary" hidden></div>
+  </section>
+
+  <section id="history" hidden>
+    <div class="card"><div class="row" style="margin:0"><span style="font-size:14px;color:var(--mute)">Show sessions:</span>
+      <div class="tabs" id="histFilter" style="margin:0"></div></div>
+      <p class="hint" id="filterHint" style="margin:8px 0 0"></p></div>
+    <div class="card" id="histTop"></div>
+    <div class="card"><h2>Average lean on each vowel, all sessions</h2><div id="chVowels"></div>
+      <div class="legend"><span><i style="background:var(--flat)"></i>flat</span><span><i style="background:var(--sharp)"></i>sharp</span><span><i style="background:var(--band)"></i>±10¢ (inner) / ±25¢</span></div></div>
+    <div class="card"><h2>Each vowel against your other vowels on the same note</h2><div id="chRel"></div>
+      <p class="hint" style="margin:6px 0 0">This takes the note out of it. Below the line means that vowel sat lower than your other vowels on the same notes; above means higher. If a vowel is flat here, it's the vowel, not the pitch.</p></div>
+    <div class="card"><h2>Vowel by note, all sessions</h2><div id="grid"></div>
+      <p class="hint" style="margin:6px 0 0">Average lean in cents. Blue is flat, red is sharp, and the deeper the colour, the further out.</p></div>
+    <div class="card"><h2>Average lean, session by session</h2><div id="chLean"></div><div class="legend"><span><i style="background:var(--flat)"></i>flat</span><span><i style="background:var(--sharp)"></i>sharp</span><span><i style="background:var(--band)"></i>±10¢ (inner) / ±25¢</span></div></div>
+    <div class="card"><h2>Sessions</h2><div id="sessList"></div>
+      <div class="row" style="margin:12px 0 6px">
+        <button id="exportBtn">Export sessions</button>
+        <label class="btn">Import…<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+      </div>
+      <p class="hint" style="margin:0">Sessions are saved in this browser only. Export now and then to keep a copy, or to move them to another device.</p>
+    </div>
+  </section>
+</main>
+<div id="tip" class="tip" hidden></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// ---------- Notes ----------
+const NAMES = ['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
+const noteName = m => NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+const hzToMidi = f => 69 + 12 * Math.log2(f / 440);
+const LOWEST = 36, HIGHEST = 84;   // C2 .. C6
+
+const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+const median = a => { const s = [...a].sort((x, y) => x - y), h = s.length >> 1; return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2; };
+const sdev = a => { const m = avg(a); return Math.sqrt(avg(a.map(x => (x - m) * (x - m)))); };
+const lean = c => Math.abs(c) < 3 ? 'centred' : `${Math.abs(Math.round(c))}¢ ${c < 0 ? 'flat' : 'sharp'}`;
+const sgn = c => (c > 0 ? '+' : c < 0 ? '−' : '') + Math.abs(Math.round(c));
+const zone = c => Math.abs(c) <= 10 ? 'g' : Math.abs(c) <= 25 ? 'w' : 'b';
+const ddmm = iso => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
+const fullDate = iso => { const d = new Date(iso); return `${ddmm(iso)}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ---------- Storage ----------
+// One record per session. Each take is one note sung on one vowel, and keeps its raw
+// frames ([ms since listening began, cents off the target]) so the stats can be
+// redefined later and old sessions recomputed.
+const KEY = 'singing-vowels-v1';
+function load() {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+  s = s && s.sessions ? s : { sessions: [] };
+  s.settings = Object.assign({ lo: 48, hi: 57, dir: 'up', sound: 'piano', anyOct: true, phones: false, gate: 60, vowels: 'ee eh ah oh oo', hold: 1.5, vorder: 'same', auto: true }, s.settings || {});
+  s.sessions.forEach(x => { x.done = true; });   // anything unfinished ended when the tab closed
+  return s;
+}
+const store = load();
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(store)); }
+  catch (e) { $('msg').textContent = 'Couldn\'t save (browser storage full or blocked). Export your sessions to keep them.'; }
+}
+const S = store.settings;
+// "ee, eh / ah oh" → ['ee','eh','ah','oh']. Lower case, so "OO" and "oo" count as one vowel in the history.
+const parseVowels = s => [...new Set(String(s || '').toLowerCase().split(/[\s,\/;|]+/).map(x => x.trim()).filter(Boolean))].slice(0, 8);
+
+// ---------- Setup controls ----------
+for (const id of ['lo', 'hi']) for (let m = LOWEST; m <= HIGHEST; m++) $(id).add(new Option(noteName(m), m));
+$('lo').value = S.lo; $('hi').value = S.hi; $('dir').value = S.dir; $('sound').value = S.sound;
+$('anyoct').checked = S.anyOct; $('phones').checked = S.phones; $('gate').value = S.gate;
+$('vowels').value = S.vowels; $('hold').value = String(S.hold); $('vorder').value = S.vorder; $('auto').checked = S.auto;
+function phonesHint() {
+  $('phonesHint').textContent = S.phones
+    ? 'Headphones: the note keeps sounding for a few seconds while you start, and you\'re scored the whole time.'
+    : 'Speakers: the note plays once for a moment, then stops so the mic only hears you. Start singing when it stops.';
+}
+function vowelHint() {
+  const v = parseVowels(S.vowels), n = Math.abs(S.hi - S.lo) + 1;
+  $('vowelHint').textContent = v.length
+    ? `Separate them with spaces or commas. Each note is sung ${v.length === 1 ? 'once' : v.length + ' times'}, once per vowel, with a breath between: ${v.join(' → ')}. ${n} note${n === 1 ? '' : 's'}, so ${n * v.length} takes. ${S.auto ? `Hold each one for ${S.hold}s and stop: it moves on by itself.` : 'Press Space after each vowel.'}`
+    : 'Type the vowels you\'ll sing, e.g. ee eh ah oh oo.';
+}
+phonesHint(); vowelHint();
+for (const id of ['lo', 'hi', 'dir', 'sound', 'anyoct', 'phones', 'gate', 'vowels', 'hold', 'vorder', 'auto']) $(id).addEventListener(id === 'vowels' ? 'input' : 'change', () => {
+  S.lo = +$('lo').value; S.hi = +$('hi').value; S.dir = $('dir').value; S.sound = $('sound').value;
+  S.anyOct = $('anyoct').checked; S.phones = $('phones').checked; S.gate = +$('gate').value;
+  S.vowels = $('vowels').value; S.hold = +$('hold').value; S.vorder = $('vorder').value; S.auto = $('auto').checked;
+  phonesHint(); vowelHint(); save();
+});
+// ---------- Sounds ----------
+// Both are rendered once per note into a buffer. Pitch accuracy matters more than
+// realism here: it's the reference you're tuning to.
+let actx;
+const soundCache = new Map();
+function pianoBuffer(midi) {
+  const sr = actx.sampleRate, f = midiHz(midi), len = Math.floor(sr * 3), b = actx.createBuffer(1, len, sr), d = b.getChannelData(0);
+  const B = 0.00008;                                  // string stiffness: upper partials run a hair sharp
+  const nP = Math.max(4, Math.min(16, Math.floor(7000 / f)));
+  const tauSlow = 3.2 * Math.pow(2, -(midi - 48) / 24);
+  for (let k = 1; k <= nP; k++) {
+    const fk = k * f * Math.sqrt(1 + B * k * k) / Math.sqrt(1 + B);   // fundamental stays exact
+    const a = (k === 2 ? 0.7 : 1) / Math.pow(k, 1.25);
+    const r = (1 / tauSlow) * (1 + 0.45 * Math.pow(k - 1, 1.2));
+    for (const det of [-0.0004, 0.0004]) {             // two strings per note, ~0.7¢ apart
+      const w = 2 * Math.PI * fk * (1 + det) / sr, ph = Math.random() * 6.28;
+      for (let i = 0; i < len; i++) {
+        const t = i / sr;
+        d[i] += a * (0.55 * Math.exp(-t * r * 5) + 0.45 * Math.exp(-t * r)) * Math.sin(w * i + ph);
+      }
+    }
+  }
+  // hammer thump
+  let lp = 0; const thump = Math.floor(sr * 0.025);
+  for (let i = 0; i < thump; i++) { lp += 0.08 * ((Math.random() * 2 - 1) - lp); d[i] += lp * 0.6 * (1 - i / thump); }
+  shape(d, sr, 0.004);
+  return { buf: b, rate: 1 };
+}
+function guitarBuffer(midi) {
+  // Karplus-Strong. Each sample is fed back as the average of itself and the next,
+  // so the loop's period is N - 0.5 samples. That's rarely the exact pitch, so the
+  // buffer is played back at whatever rate corrects it.
+  const sr = actx.sampleRate, f = midiHz(midi), len = Math.floor(sr * 3), b = actx.createBuffer(1, len, sr), d = b.getChannelData(0);
+  const N = Math.max(3, Math.round(sr / f + 0.5)), f0 = sr / (N - 0.5);
+  const ring = new Float32Array(N);
+  let lp = 0;
+  for (let i = 0; i < N; i++) { lp += 0.5 * ((Math.random() * 2 - 1) - lp); ring[i] = lp; }
+  const pick = Math.max(1, Math.floor(N * 0.18)), ex = ring.slice();
+  for (let i = 0; i < N; i++) ring[i] = ex[i] - 0.6 * ex[(i - pick + N) % N];   // plucked a little way from the bridge
+  const rho = Math.pow(0.001, 1 / (f0 * 7));
+  let idx = 0;
+  for (let i = 0; i < len; i++) {
+    const y = ring[idx], nx = (idx + 1) % N;
+    d[i] = y;
+    ring[idx] = rho * 0.5 * (y + ring[nx]);
+    idx = nx;
+  }
+  shape(d, sr, 0.002);
+  return { buf: b, rate: f / f0 };
+}
+function shape(d, sr, attack) {
+  const a = Math.floor(sr * attack), r = Math.floor(sr * 0.2);
+  for (let i = 0; i < a; i++) d[i] *= i / a;
+  for (let i = 0; i < r; i++) d[d.length - 1 - i] *= i / r;
+  let peak = 0; for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  if (peak > 0) for (let i = 0; i < d.length; i++) d[i] *= 0.7 / peak;
+}
+function getSound(midi) {
+  const key = S.sound + midi;
+  if (!soundCache.has(key)) soundCache.set(key, (S.sound === 'guitar' ? guitarBuffer : pianoBuffer)(midi));
+  return soundCache.get(key);
+}
+let ref = null, refEnd = 0;   // refEnd: performance.now() when the speaker is quiet again
+function playRef(midi) {
+  stopRef();
+  const { buf, rate } = getSound(midi);
+  const src = actx.createBufferSource(), g = actx.createGain();
+  src.buffer = buf; src.playbackRate.value = rate;
+  const len = S.phones ? 2.8 : 1.8, t = actx.currentTime;
+  g.gain.setValueAtTime(1, t); g.gain.setValueAtTime(1, t + len - 0.15); g.gain.linearRampToValueAtTime(0, t + len);
+  src.connect(g).connect(actx.destination);
+  src.start(t); src.stop(t + len + 0.05);
+  ref = { src, g };
+  refEnd = performance.now() + (S.phones ? 0 : len * 1000 + 150);
+  traceMarks.push({ t: performance.now(), label: noteName(midi), play: S.phones ? 0 : len * 1000 + 150 });
+}
+function stopRef() {
+  if (!ref) return;
+  try { const t = actx.currentTime; ref.g.gain.cancelScheduledValues(t); ref.g.gain.setValueAtTime(ref.g.gain.value, t); ref.g.gain.linearRampToValueAtTime(0, t + 0.03); ref.src.stop(t + 0.05); } catch (e) {}
+  ref = null;
+}
+const gated = () => !S.phones && performance.now() < refEnd;
+
+// ---------- Pitch detection (McLeod normalised square difference) ----------
+// Same detector as the Classical Note Trainer, with the range widened for voice.
+const F_MIN = 65, F_MAX = 1100;
+function detectPitch(buf, sr) {
+  const n = buf.length, maxTau = Math.min(n >> 1, Math.floor(sr / F_MIN)), minTau = Math.floor(sr / F_MAX);
+  const nsdf = new Float32Array(maxTau);
+  let sq = 0; for (let i = 0; i < n; i++) sq += buf[i] * buf[i];
+  let m = 2 * sq;
+  for (let tau = 0; tau < maxTau; tau++) {
+    let acf = 0;
+    for (let i = 0; i < n - tau; i++) acf += buf[i] * buf[i + tau];
+    nsdf[tau] = m > 0 ? 2 * acf / m : 0;
+    m -= buf[tau] * buf[tau] + buf[n - 1 - tau] * buf[n - 1 - tau];
+  }
+  const peaks = [];
+  let tau = 1;
+  while (tau < maxTau - 1 && nsdf[tau] > 0) tau++;
+  while (tau < maxTau - 1) {
+    while (tau < maxTau - 1 && nsdf[tau] <= 0) tau++;
+    let best = -1;
+    while (tau < maxTau - 1 && nsdf[tau] > 0) {
+      if (best < 0 || nsdf[tau] > nsdf[best]) best = tau;
+      tau++;
+    }
+    if (best > 0 && best >= minTau && nsdf[best] > nsdf[best - 1] && nsdf[best] >= nsdf[best + 1]) peaks.push(best);
+  }
+  if (!peaks.length) return null;
+  let maxVal = 0; for (const p of peaks) maxVal = Math.max(maxVal, nsdf[p]);
+  const pick = peaks.find(p => nsdf[p] >= 0.9 * maxVal);
+  const a = nsdf[pick - 1], b = nsdf[pick], c = nsdf[pick + 1];
+  const shift = (a - c) / (2 * (a - 2 * b + c) || 1);
+  return { freq: sr / (pick + shift), clarity: b };
+}
+
+// ---------- Stats ----------
+// A note's first 0.3s of each sung stretch is the "onset" (where scoops live); the
+// rest is "held", which is what accuracy and lean are measured on. Frames more than
+// 50¢ out count against accuracy but are left out of the lean, so one wrong note
+// can't drag the average.
+function noteStats(f) {
+  if (!f || f.length < 10) return null;
+  const held = [], onset = [];
+  let segStart = 0, prev = -1e9, secs = 0;
+  for (const [ms, c] of f) {
+    if (ms - prev > 160) segStart = ms; else secs += (ms - prev) / 1000;
+    prev = ms;
+    (ms - segStart < 300 ? onset : held).push(c);
+  }
+  const H = held.length >= 5 ? held : f.map(x => x[1]);
+  const near = H.filter(c => Math.abs(c) <= 50), ons = onset.filter(c => Math.abs(c) <= 100);
+  const pct = k => Math.round(100 * H.filter(c => Math.abs(c) <= k).length / H.length);
+  let find = null;
+  for (let i = 0; i + 2 < f.length; i++) {
+    if (Math.abs(f[i][1]) <= 25 && Math.abs(f[i + 1][1]) <= 25 && Math.abs(f[i + 2][1]) <= 25 && f[i + 2][0] - f[i][0] < 200) { find = f[i][0] / 1000; break; }
+  }
+  return {
+    secs, on: pct(25), spot: pct(10), off: Math.round(100 * (1 - near.length / H.length)),
+    mean: near.length >= 3 ? avg(near) : null,
+    sd: near.length >= 3 ? sdev(near) : null,
+    onset: ons.length >= 3 ? avg(ons) : null,
+    find,
+  };
+}
+// Lowest third of the notes against the highest third.
+function register(pts) {   // pts: [{m, v}]
+  if (pts.length < 5) return null;
+  const s = [...pts].sort((a, b) => a.m - b.m), k = Math.max(2, Math.floor(s.length / 3));
+  const lo = s.slice(0, k), hi = s.slice(-k);
+  return { lo: avg(lo.map(p => p.v)), hi: avg(hi.map(p => p.v)), loName: `${noteName(lo[0].m)}–${noteName(lo[k - 1].m)}`, hiName: `${noteName(hi[0].m)}–${noteName(hi[k - 1].m)}` };
+}
+function registerLine(r) {
+  if (!r) return null;
+  const d = r.hi - r.lo;
+  if (Math.abs(d) < 8) return `Low and high notes sat about the same (low ${r.loName}: ${lean(r.lo)}; high ${r.hiName}: ${lean(r.hi)}).`;
+  return `You go <b>${d > 0 ? 'sharper' : 'flatter'} as you go up</b>: low notes (${r.loName}) ${lean(r.lo)}, high notes (${r.hiName}) ${lean(r.hi)}.`;
+}
+
+// ---------- Microphone + main loop ----------
+let analyser, abuf, stream = null, micOn = false, lastRun = 0;
+const hist3 = [];                 // last three pitch readings, for a median filter against octave blips
+let live = { c: null, m: null };  // what's being heard now
+async function ensureAudio() {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') await actx.resume();
+}
+// Safari (and every browser on an iPhone, which all use its engine) clears a backlog
+// from opening the mic by running it 5% fast, which reads about 85¢ sharp, for up to
+// about 20 seconds (WebKit's AudioSampleDataConverter). So the first session after the
+// mic opens waits for that to pass. Measured on a real recording, 30/10/2026.
+let isWebKit = /Safari/.test(navigator.userAgent) && !/Chrome|Chromium|Edg/.test(navigator.userAgent);
+const MIC_SETTLE = 20000;
+let micOpenedAt = 0, settling = false, cancelSettle = false;
+function settleMic() {
+  return new Promise(resolve => {
+    const finish = ok => { settling = false; $('startBtn').textContent = 'Start session'; if (!ok) $('msg').textContent = 'Listening.'; resolve(ok); };
+    const tick = () => {
+      if (cancelSettle) { cancelSettle = false; return finish(false); }
+      const left = MIC_SETTLE - (performance.now() - micOpenedAt);
+      if (left <= 0) return finish(true);
+      $('startBtn').textContent = `Mic settling… ${Math.ceil(left / 1000)}s`;
+      $('msg').textContent = 'Safari can read about a semitone sharp just after the mic opens, so this gives it time. Tap again to cancel.';
+      setTimeout(tick, 250);
+    };
+    settling = true; tick();
+  });
+}
+async function ensureMic() {
+  await ensureAudio();
+  if (micOn) return true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    $('msg').textContent = 'This browser can\'t reach the microphone from here. Try Chrome or Safari.';
+    return false;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true } });
+    const src = actx.createMediaStreamSource(stream);
+    analyser = actx.createAnalyser(); analyser.fftSize = 4096;
+    src.connect(analyser);
+    abuf = new Float32Array(analyser.fftSize);
+    micOn = true; micOpenedAt = performance.now();
+    $('tunerBtn').textContent = 'Mic off';
+    $('msg').textContent = 'Listening.';
+    return true;
+  } catch (e) {
+    $('msg').textContent = 'Couldn\'t use the microphone: ' + (e.message || e.name) + '. Allow it in the browser and try again.';
+    return false;
+  }
+}
+function micOff() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; micOn = false; live = { c: null, m: null };
+  $('tunerBtn').textContent = 'Just the tuner';
+  $('msg').textContent = 'Mic off.';
+}
+
+function analyse(now) {
+  analyser.getFloatTimeDomainData(abuf);
+  let s = 0; for (let i = 0; i < abuf.length; i++) s += abuf[i] * abuf[i];
+  const rms = Math.sqrt(s / abuf.length);
+  $('level').style.width = Math.min(100, Math.sqrt(rms) * 220) + '%';
+  const gate = 0.02 * Math.pow(0.035, S.gate / 100);
+  let midi = null;
+  if (rms >= gate) {
+    const r = detectPitch(abuf, actx.sampleRate);
+    if (r && r.clarity >= 0.8 && r.freq >= F_MIN && r.freq <= F_MAX) midi = hzToMidi(r.freq);
+  }
+  if (midi == null) { hist3.length = 0; live = { c: null, m: null }; trace.push({ t: now, c: null }); return; }
+  hist3.push(midi); if (hist3.length > 3) hist3.shift();
+  const m = median(hist3);
+  const T = sess && sess.cur;
+  let c;
+  if (T) {
+    c = (m - T.m) * 100;
+    if (S.anyOct) c -= Math.round(c / 1200) * 1200;
+  } else c = (m - Math.round(m)) * 100;   // tuner: nearest note
+  live = { c, m };
+  const listening = T && !gated();
+  trace.push({ t: now, c, quiet: !listening && !!T });
+  if (listening) {
+    if (T.t0 == null) T.t0 = now;
+    T.f.push([Math.round(now - T.t0), Math.round(c * 10) / 10]);
+  }
+}
+
+let needle = 0, lastStat = 0;
+function loop(t) {
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  if (micOn && now - lastRun >= 30) { lastRun = now; analyse(now); }
+  // read-outs
+  const T = sess && sess.cur;
+  const playing = T && gated();
+  $('playing').textContent = playing ? '🔊 listen…' : (T && !S.phones && T.pos === 0 && !T.f.length ? 'now sing' : '');
+  // while the note plays through the speakers the mic is hearing the piano, not you
+  if (live.c != null && !playing) {
+    const z = zone(live.c);
+    $('heard').textContent = noteName(Math.round(live.m));
+    $('heard').className = 'heard ' + (Math.abs(live.c) <= 50 ? z : 'b');
+    $('cents').textContent = Math.abs(live.c) <= 50 ? `${sgn(live.c)}¢` : (T ? `${(live.c / 100).toFixed(1)} semitones off` : '');
+    needle += (Math.max(-50, Math.min(50, live.c)) - needle) * 0.35;
+    $('needle').style.left = (50 + needle) + '%';
+    $('needle').style.opacity = 1;
+    $('needle').style.background = `var(--${{ g: 'good', w: 'warn', b: 'bad' }[z]})`;
+    const a = Math.abs(live.c), dir = live.c < 0 ? 'flat' : 'sharp';
+    $('verdict').textContent = a <= 10 ? 'Spot on' : a <= 25 ? `A touch ${dir}` : a <= 50 ? (dir[0].toUpperCase() + dir.slice(1)) : (T ? `Off the note (${noteName(Math.round(live.m))})` : '');
+  } else {
+    $('heard').textContent = '–'; $('heard').className = 'heard'; $('cents').textContent = '';
+    $('needle').style.opacity = 0; $('verdict').textContent = '';
+  }
+  if (T && now - lastStat > 120) {
+    lastStat = now;
+    const st = noteStats(T.f), held = st && st.secs >= S.hold;
+    $('noteStat').innerHTML = st
+      ? `“${esc(T.w)}”: held <b>${st.secs.toFixed(1)}s</b> · <b>${st.on}%</b> on pitch${st.mean != null ? ` · leaning <b>${lean(st.mean)}</b>` : ''}${held ? (S.auto ? ' · <b>got it, stop and breathe</b>' : ' · <b>got it, press Space</b>') : ''}`
+      : (T.f.length ? `“${esc(T.w)}”: keep holding…` : '');
+    // moves on once the vowel has been held long enough and you've stopped for a moment
+    if (held && S.auto && !gated() && T.t0 != null && now - (T.t0 + T.f[T.f.length - 1][0]) > 450) nextVowel();
+  }
+  drawTrace(now);
+}
+requestAnimationFrame(loop);
+
+// ---------- Live trace ----------
+const WINDOW = 10000, trace = [], traceMarks = [];
+function drawTrace(now) {
+  const cv = $('trace'), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue('--' + k).trim();
+  const R = 60, y = c => H / 2 - Math.max(-R, Math.min(R, c)) / R * (H / 2 - 8), x = t => W - (now - t) / WINDOW * W;
+  while (trace.length && now - trace[0].t > WINDOW) trace.shift();
+  while (traceMarks.length && now - traceMarks[0].t - traceMarks[0].play > WINDOW && traceMarks.length > 1) traceMarks.shift();
+  // bands
+  g.fillStyle = col('band'); g.fillRect(0, y(25), W, y(-25) - y(25));
+  g.globalAlpha = 0.35; g.fillStyle = col('good'); g.fillRect(0, y(10), W, y(-10) - y(10)); g.globalAlpha = 1;
+  g.strokeStyle = col('mute'); g.globalAlpha = 0.5; g.lineWidth = 1; g.beginPath(); g.moveTo(0, y(0)); g.lineTo(W, y(0)); g.stroke(); g.globalAlpha = 1;
+  g.fillStyle = col('mute'); g.font = '11px -apple-system,sans-serif';
+  g.fillText('sharp', 6, 14); g.fillText('flat', 6, H - 6); g.fillText('+25¢', W - 34, y(25) - 3); g.fillText('−25¢', W - 34, y(-25) + 12);
+  // note changes + reference playing
+  for (const mk of traceMarks) {
+    const x0 = x(mk.t);
+    if (mk.play) { g.globalAlpha = 0.12; g.fillStyle = col('accent'); g.fillRect(x0, 0, x(mk.t + mk.play) - x0, H); g.globalAlpha = 1; }
+    g.strokeStyle = col('accent'); g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x0, 0); g.lineTo(x0, H); g.stroke(); g.setLineDash([]);
+    g.fillStyle = col('accent'); g.fillText(mk.label, x0 + 4, 26);
+  }
+  // pitch line, coloured by how close it is
+  g.lineWidth = 2.5; g.lineCap = 'round';
+  for (let i = 1; i < trace.length; i++) {
+    const a = trace[i - 1], b = trace[i];
+    if (a.c == null || b.c == null || b.t - a.t > 160) continue;
+    const z = Math.abs(b.c) > 50 ? 'b' : zone(b.c);
+    g.strokeStyle = col({ g: 'good', w: 'warn', b: 'bad' }[z]);
+    g.globalAlpha = b.quiet ? 0.25 : 1;
+    g.beginPath(); g.moveTo(x(a.t), y(a.c)); g.lineTo(x(b.t), y(b.c)); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+
+// ---------- Vowel stats ----------
+// A take is one note on one vowel. Every take's lean is also read against the other
+// vowels on the same note in the same session ("rel"): that takes pitch out of it, so a
+// vowel that's flat only because it was sung on high notes doesn't get the blame.
+function sessionStats(s) {
+  const V = s.vowels || [];
+  const takes = s.notes.map(n => ({ m: n.m, w: n.w || V[n.vi] || '?', pos: n.pos || 0, replays: n.r || 0, fb: n.v == null ? null : !!n.v, st: noteStats(n.f) })).filter(n => n.st);
+  if (!takes.length) return null;
+  const tagged = takes.filter(n => n.fb != null), nFb = tagged.filter(n => n.fb).length;
+  const mode = !tagged.length ? null : nFb === 0 ? 'blind' : nFb === tagged.length ? 'checking' : 'partial';
+  const withMean = takes.filter(n => n.st.mean != null);
+  const byNote = new Map();
+  for (const n of withMean) { if (!byNote.has(n.m)) byNote.set(n.m, []); byNote.get(n.m).push(n); }
+  for (const g of byNote.values()) {
+    if (g.length < 2) continue;
+    for (const n of g) n.rel = n.st.mean - avg(g.filter(o => o !== n).map(o => o.st.mean));
+  }
+  const vowels = [...V, ...new Set(takes.map(n => n.w).filter(w => !V.includes(w)))];
+  const byVowel = vowels.map(w => {
+    const all = takes.filter(n => n.w === w), wm = all.filter(n => n.st.mean != null), rl = wm.filter(n => n.rel != null);
+    return { w, n: all.length, lean: wm.length ? avg(wm.map(n => n.st.mean)) : null, rel: rl.length ? avg(rl.map(n => n.rel)) : null, on: all.length ? Math.round(avg(all.map(n => n.st.on))) : null, sd: (x => x.length ? median(x) : null)(all.map(n => n.st.sd).filter(x => x != null)) };
+  }).filter(v => v.n);
+  const notes = [...byNote.entries()].sort((a, b) => a[0] - b[0]).map(([m, g]) => ({ m, v: avg(g.map(n => n.st.mean)) }));
+  return {
+    notes: takes, takes, withMean, mode, byVowel, perNote: notes,
+    on: Math.round(avg(takes.map(n => n.st.on))),
+    spot: Math.round(avg(takes.map(n => n.st.spot))),
+    lean: withMean.length ? avg(withMean.map(n => n.st.mean)) : null,
+    secs: takes.reduce((x, n) => x + n.st.secs, 0),
+  };
+}
+// The lean of every take, gathered by vowel (and by vowel and note) across sessions.
+function gather(stats) {
+  const by = new Map(), cell = new Map(), order = [];
+  for (const st of stats) for (const n of st.takes) {
+    if (!by.has(n.w)) { by.set(n.w, { w: n.w, means: [], rels: [], on: [], pts: [], pos: [] }); order.push(n.w); }
+    const b = by.get(n.w);
+    b.on.push(n.st.on);
+    if (n.st.mean == null) continue;
+    b.means.push(n.st.mean); b.pts.push({ m: n.m, v: n.st.mean }); b.pos.push({ p: n.pos, v: n.st.mean });
+    if (n.rel != null) b.rels.push(n.rel);
+    const k = n.w + '|' + n.m;
+    if (!cell.has(k)) cell.set(k, []);
+    cell.get(k).push(n.st.mean);
+  }
+  const first = parseVowels(S.vowels);
+  order.sort((a, b) => (first.includes(a) ? first.indexOf(a) : 99) - (first.includes(b) ? first.indexOf(b) : 99));
+  const vowels = order.map(w => by.get(w)).map(b => ({ ...b, lean: b.means.length ? avg(b.means) : null, rel: b.rels.length ? avg(b.rels) : null, onAvg: Math.round(avg(b.on)), k: b.means.length }));
+  return { vowels, cell };
+}
+function vowelLines(g, scope) {
+  const out = [], vs = g.vowels.filter(v => v.k >= (scope === 'all' ? 4 : 1) && v.lean != null);
+  if (vs.length >= 2) {
+    const s = [...vs].sort((a, b) => a.lean - b.lean), lo = s[0], hi = s[s.length - 1];
+    if (hi.lean - lo.lean >= 6) out.push(`Flattest vowel: <b>“${esc(lo.w)}”, ${lean(lo.lean)}</b>. Sharpest: <b>“${esc(hi.w)}”, ${lean(hi.lean)}</b>.`);
+    else out.push(`Your vowels sat within ${Math.max(1, Math.round(hi.lean - lo.lean))}¢ of each other: none stands out.`);
+  }
+  const rs = g.vowels.filter(v => v.rels.length >= (scope === 'all' ? 4 : 2) && v.rel != null && Math.abs(v.rel) >= 6).sort((a, b) => a.rel - b.rel);
+  if (rs.length) out.push(`On the same note, ${rs.map(v => `<b>“${esc(v.w)}” sat ${Math.round(Math.abs(v.rel))}¢ ${v.rel < 0 ? 'lower' : 'higher'}</b>`).join(', ')} than your other vowels.`);
+  else if (g.vowels.some(v => v.rels.length >= 2)) out.push('On the same note, every vowel sat within 6¢ of the others.');
+  const hard = g.vowels.filter(v => v.on.length >= 2 && v.onAvg < 75).sort((a, b) => a.onAvg - b.onAvg).slice(0, 2);
+  if (hard.length) out.push(`Hardest to keep on pitch: ${hard.map(v => `“${esc(v.w)}” (${v.onAvg}% within 25¢)`).join(', ')}.`);
+  // does one vowel drift with register more than the rest?
+  for (const v of g.vowels) {
+    const r = register(v.pts), base = register(g.vowels.filter(o => o !== v).flatMap(o => o.pts));
+    if (!r || !base) continue;
+    const d = (r.hi - r.lo) - (base.hi - base.lo);
+    if (Math.abs(d) >= 10) out.push(`“${esc(v.w)}” goes <b>${d < 0 ? 'flatter' : 'sharper'} as you go up</b> more than your other vowels do (low ${r.loName}: ${lean(r.lo)}; high ${r.hiName}: ${lean(r.hi)}).`);
+  }
+  return out;
+}
+
+// ---------- Session ----------
+let sess = null;   // { rec, order: [midi], i (note), vs (vowel order for this note), j (place in vs), cur (current take) }
+function sessionOrder() {
+  const lo = Math.min(S.lo, S.hi), hi = Math.max(S.lo, S.hi), o = [];
+  for (let m = lo; m <= hi; m++) o.push(m);
+  return S.dir === 'down' ? o.reverse() : o;
+}
+let wake = null;
+async function startSession() {
+  if (settling) { cancelSettle = true; return; }
+  const vowels = parseVowels(S.vowels);
+  if (!vowels.length) { $('msg').textContent = 'Type the vowels you\'ll sing first, e.g. ee eh ah oh oo.'; $('vowels').focus(); return; }
+  if (!(await ensureMic())) return;
+  if (isWebKit && !(await settleMic())) return;
+  const order = sessionOrder();
+  const rec = { id: Date.now().toString(36), start: new Date().toISOString(), sound: S.sound, dir: S.dir, anyOct: S.anyOct, phones: S.phones, lo: Math.min(S.lo, S.hi), hi: Math.max(S.lo, S.hi), vowels, hold: S.hold, vorder: S.vorder, notes: [], done: false };
+  store.sessions.push(rec); save();
+  sess = { rec, order, i: -1, vs: [], j: -1, cur: null };
+  $('setup').querySelectorAll('select,input,#startBtn').forEach(e => e.disabled = true);
+  $('controls').hidden = false; $('fbRow').hidden = false; $('summary').hidden = true;
+  try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+  nextNote();
+}
+function nextNote() {
+  if (!sess) return;
+  if (sess.i + 1 >= sess.order.length) return finishSession();
+  sess.i++;
+  const V = sess.rec.vowels.length, k = sess.rec.vorder === 'rotate' ? sess.i % V : 0;
+  sess.vs = sess.rec.vowels.map((_, x) => (x + k) % V);
+  sess.j = -1;
+  playRef(sess.order[sess.i]);
+  startVowel(true);
+}
+function nextVowel() {
+  if (!sess) return;
+  if (sess.j + 1 >= sess.vs.length) return nextNote();
+  startVowel(false);
+}
+function startVowel(first) {
+  sess.j++;
+  const m = sess.order[sess.i], vi = sess.vs[sess.j], w = sess.rec.vowels[vi];
+  sess.cur = { m, vi, w, pos: sess.j, r: 0, v: $('usedFb').checked ? 1 : 0, f: [], t0: null };   // v: 1 = used the visual feedback; carries over
+  sess.rec.notes.push(sess.cur);
+  save();
+  hist3.length = 0;
+  // timings count from when you can start singing
+  sess.cur.t0 = first ? (S.phones ? performance.now() : refEnd) : performance.now();
+  if (!first) traceMarks.push({ t: performance.now(), label: w, play: 0 });
+  $('target').textContent = noteName(m);
+  $('vowel').textContent = `“${w}”`;
+  $('noteStat').textContent = '';
+  const lastV = sess.j + 1 >= sess.vs.length, lastN = sess.i + 1 >= sess.order.length;
+  $('nextv').textContent = lastV ? (lastN ? 'last one' : `then ${noteName(sess.order[sess.i + 1])}`) : `then “${sess.rec.vowels[sess.vs[sess.j + 1]]}”`;
+  $('nextBtn').innerHTML = (lastV ? (lastN ? 'Finish ✓' : `Next note ${S.dir === 'down' ? '↓' : '↑'}`) : 'Next vowel') + '<kbd>Space</kbd>';
+  renderStrip(); renderVowels();
+}
+function setFb(on) {
+  $('usedFb').checked = on;
+  if (sess && sess.cur) { sess.cur.v = on ? 1 : 0; save(); }
+}
+function replay() {   // hear the note again and start this vowel over
+  if (!sess || !sess.cur) return;
+  const T = sess.cur;
+  T.r++; T.f = []; hist3.length = 0;
+  playRef(T.m);
+  T.t0 = S.phones ? performance.now() : refEnd;
+  renderVowels();
+}
+const onCls = st => st ? (st.on >= 75 ? 'g' : st.on >= 45 ? 'w' : 'b') : '';
+function renderStrip() {
+  if (!sess) { $('strip').innerHTML = ''; return; }
+  $('progress').textContent = `Note ${sess.i + 1} of ${sess.order.length} · vowel ${sess.j + 1} of ${sess.vs.length}`;
+  $('strip').innerHTML = sess.order.map((m, i) => {
+    let cls = i === sess.i ? 'cur' : '';
+    if (i < sess.i) {
+      const sts = sess.rec.notes.filter(n => n.m === m).map(n => noteStats(n.f)).filter(Boolean);
+      cls = sts.length ? onCls({ on: avg(sts.map(x => x.on)) }) : 'b';
+    }
+    return `<span class="${cls}">${noteName(m)}</span>`;
+  }).join('');
+}
+let vstripAt = 0;
+function renderVowels() {
+  if (!sess) { $('vstrip').innerHTML = ''; return; }
+  vstripAt = performance.now();
+  const takes = sess.rec.notes.slice(-(sess.j + 1));
+  $('vstrip').innerHTML = sess.vs.map((vi, x) => {
+    const w = sess.rec.vowels[vi], t = x <= sess.j ? takes[x] : null, st = t && t.f.length ? noteStats(t.f) : null;
+    const cls = x === sess.j ? 'cur' : st ? (st.mean == null ? 'b' : zone(st.mean)) : '';
+    return `<span class="${cls}">${esc(w)}${st && x < sess.j ? ': ' + (st.mean == null ? 'off' : sgn(st.mean) + '¢') : ''}</span>`;
+  }).join('');
+}
+setInterval(() => { if (sess && performance.now() - vstripAt > 400) renderVowels(); }, 500);
+function finishSession() {
+  if (!sess) return;
+  stopRef();
+  const rec = sess.rec;
+  rec.done = true; rec.end = new Date().toISOString();
+  rec.notes = rec.notes.filter(n => n.f.length);
+  sess = null;
+  $('setup').querySelectorAll('select,input,#startBtn').forEach(e => e.disabled = false);
+  $('controls').hidden = true; $('fbRow').hidden = true;
+  $('target').textContent = '–'; $('vowel').textContent = ''; $('nextv').textContent = ''; $('playing').textContent = ''; $('noteStat').textContent = ''; $('strip').innerHTML = ''; $('vstrip').innerHTML = '';
+  if (wake) { wake.release().catch(() => {}); wake = null; }
+  const st = sessionStats(rec);
+  if (!st) {
+    store.sessions = store.sessions.filter(x => x !== rec); save();
+    $('progress').textContent = 'Session ended. Nothing was sung, so it wasn\'t saved.';
+    return;
+  }
+  save();
+  $('progress').textContent = 'Session saved.';
+  renderSummary(rec);
+}
+
+// ---------- Session summary ----------
+function renderSummary(rec) {
+  const st = sessionStats(rec), el = $('summary'), g = gather([st]);
+  const prev = store.sessions.filter(s => s !== rec && s.done && s.start < rec.start).map(sessionStats).filter(Boolean).slice(-5);
+  const ins = sessionInsights(st, g, prev);
+  el.innerHTML = `
+    <h2>Session · ${fullDate(rec.start)} · ${noteName(rec.lo)}–${noteName(rec.hi)} ${rec.dir === 'down' ? '↓' : '↑'} · ${rec.vowels.map(esc).join(' ')}${st.mode ? ' · ' + MODES[st.mode] : ''}</h2>
+    <div class="tiles">
+      <div class="tile"><b>${st.on}%</b><span>on pitch (within 25¢)</span></div>
+      <div class="tile"><b>${st.spot}%</b><span>spot on (within 10¢)</span></div>
+      <div class="tile"><b>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</b><span>average lean (${st.lean == null ? 'n/a' : st.lean < 0 ? 'flat' : 'sharp'})</span></div>
+      <div class="tile"><b>${st.takes.length}</b><span>takes sung</span></div>
+    </div>
+    <h2>What I tried</h2>
+    <textarea id="sessNote" rows="2" style="width:100%;font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)" placeholder="e.g. kept the jaw loose on oo">${esc(rec.note || '')}</textarea>
+    <h2 style="margin-top:14px">What stood out</h2>
+    <ul class="ins">${ins.map(x => `<li>${x}</li>`).join('')}</ul>
+    <h2 style="margin-top:14px">Lean on each vowel</h2>
+    <div id="sumVowels"></div>
+    <div class="legend"><span><i style="background:var(--flat)"></i>flat</span><span><i style="background:var(--sharp)"></i>sharp</span><span><i style="background:var(--band)"></i>±10¢ (inner) / ±25¢</span></div>
+    <h2 style="margin-top:14px">Vowel by note</h2>
+    <div id="sumGrid"></div>
+    <details style="margin-top:12px"><summary style="cursor:pointer;color:var(--mute);font-size:14px">Take by take</summary>
+      <div style="overflow-x:auto"><table style="margin-top:8px"><tr><th>Note</th><th>Vowel</th><th>Feedback</th><th>On pitch</th><th>Lean</th><th>vs other vowels</th><th>Wobble</th><th>Held</th></tr>
+      ${st.takes.map(n => `<tr><td>${noteName(n.m)}</td><td>${esc(n.w)}</td><td>${n.fb == null ? '–' : n.fb ? 'checking' : 'blind'}</td><td>${n.st.on}%</td><td>${n.st.mean == null ? '–' : sgn(n.st.mean) + '¢'}</td><td>${n.rel == null ? '–' : sgn(n.rel) + '¢'}</td><td>${n.st.sd == null ? '–' : '±' + Math.round(n.st.sd) + '¢'}</td><td>${n.st.secs.toFixed(1)}s</td></tr>`).join('')}
+      </table></div></details>
+    <div class="row" style="margin:14px 0 0"><button id="discardBtn">Discard this session</button></div>`;
+  el.hidden = false;
+  leanChart($('sumVowels'), st.byVowel.map(v => ({ label: v.w, v: v.lean, tip: `“${v.w}”: ${v.lean == null ? 'mostly off the note' : lean(v.lean)} · ${v.on}% on pitch${v.rel != null ? ` · ${sgn(v.rel)}¢ against your other vowels` : ''}` })));
+  vowelGrid($('sumGrid'), g);
+  $('sessNote').onchange = () => { rec.note = $('sessNote').value.trim(); save(); };
+  $('discardBtn').onclick = () => {
+    if (!confirm('Discard this session? It won\'t count in your history.')) return;
+    store.sessions = store.sessions.filter(x => x !== rec); save();
+    el.hidden = true; $('progress').textContent = 'Session discarded.';
+  };
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function sessionInsights(st, g, prev) {
+  const out = [];
+  if (st.lean != null) out.push(Math.abs(st.lean) < 5
+    ? `No overall lean: on average you were centred (${sgn(st.lean)}¢).`
+    : `Overall you leaned <b>${lean(st.lean)}</b>.`);
+  out.push(...vowelLines(g, 'session'));
+  const reg = registerLine(register(st.perNote));
+  if (reg) out.push(reg);
+  const lost = st.takes.filter(n => n.st.mean == null);
+  if (lost.length) out.push(`Mostly off the note on: ${lost.slice(0, 6).map(n => `${noteName(n.m)} “${esc(n.w)}”`).join(', ')}${lost.length > 6 ? '…' : ''}.`);
+  const re = st.takes.filter(n => n.replays > 0);
+  if (re.length) out.push(`You asked to hear the note again ${re.length === 1 ? 'once' : re.length + ' times'}.`);
+  if (prev.length) {
+    const p = Math.round(avg(prev.map(x => x.on))), d = st.on - p;
+    out.push(`On pitch ${st.on}% against ${p}% over your last ${prev.length === 1 ? 'session' : prev.length + ' sessions'}${Math.abs(d) >= 3 ? ` (<b>${d > 0 ? 'up' : 'down'} ${Math.abs(d)}</b>)` : ', about the same'}.`);
+  }
+  return out;
+}
+// Rows are vowels, columns notes, each cell the average lean. Deeper colour = further out.
+function vowelGrid(el, g) {
+  const ms = [...new Set([...g.cell.keys()].map(k => +k.split('|').pop()))].sort((a, b) => a - b);
+  if (!ms.length) { el.innerHTML = '<p class="empty">Nothing to show yet.</p>'; return; }
+  const cellHtml = (w, m) => {
+    const a = g.cell.get(w + '|' + m);
+    if (!a) return '<td></td>';
+    const v = avg(a), pct = Math.round(Math.min(1, Math.abs(v) / 40) * 70);
+    return `<td class="c" style="background:color-mix(in srgb,var(${v < 0 ? '--flat' : '--sharp'}) ${pct}%,transparent)" data-tip="${esc(`“${w}” on ${noteName(m)}: ${lean(v)}${a.length > 1 ? `, over ${a.length} takes` : ''}`)}">${sgn(v)}</td>`;
+  };
+  el.innerHTML = `<div style="overflow-x:auto"><table class="grid"><tr><th></th>${ms.map(m => `<th>${noteName(m)}</th>`).join('')}</tr>${
+    g.vowels.map(v => `<tr><td>${esc(v.w)}</td>${ms.map(m => cellHtml(v.w, m)).join('')}</tr>`).join('')}</table></div>`;
+}
+// ---------- Charts ----------
+// Lean is diverging: flat (blue) below the line, sharp (red) above, grey ±10¢ band, lighter ±25¢ band, fixed ±50¢ scale.
+function leanChart(el, items) {
+  if (!items.length) { el.innerHTML = '<p class="empty">Nothing to show yet.</p>'; return; }
+  const W = Math.max(280, el.clientWidth || 600), H = 200, L = 40, Rp = 8, T = 12, B = 24;
+  const vals = items.map(i => i.v).filter(v => v != null);
+  const max = 50;   // fixed ±50¢ on every lean chart (same span as the live meter) so charts compare over time
+  const y = v => T + (H - T - B) / 2 * (1 - Math.max(-max, Math.min(max, v)) / max);
+  const slot = (W - L - Rp) / items.length, bw = Math.max(3, Math.min(26, slot * 0.6));
+  const every = Math.max(1, Math.ceil(items.length * 32 / (W - L)));
+  let s = `<rect x="${L}" y="${y(25)}" width="${W - L - Rp}" height="${y(-25) - y(25)}" fill="var(--band)" opacity="0.5"/>`;
+  s += `<rect x="${L}" y="${y(10)}" width="${W - L - Rp}" height="${y(-10) - y(10)}" fill="var(--band)"/>`;
+  for (const v of [50, 25, -25, -50]) s += `<line x1="${L}" x2="${W - Rp}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${sgn(v)}¢</text>`;
+  s += `<text x="${L - 6}" y="${y(0) + 4}" text-anchor="end">0</text>`;
+  items.forEach((it, i) => {
+    const cx = L + slot * (i + 0.5);
+    if (it.v != null) {
+      const y0 = y(0), y1 = y(it.v), h = Math.max(1.5, Math.abs(y1 - y0));
+      s += `<rect x="${cx - bw / 2}" y="${Math.min(y0, y1)}" width="${bw}" height="${h}" rx="2" fill="${it.v < 0 ? 'var(--flat)' : 'var(--sharp)'}"/>`;
+    } else s += `<text x="${cx}" y="${y(0) - 4}" text-anchor="middle">×</text>`;
+    if (i % every === 0) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle">${esc(it.label)}</text>`;
+    s += `<rect x="${cx - slot / 2}" y="0" width="${slot}" height="${H}" fill="transparent" data-tip="${esc(it.tip)}"/>`;
+  });
+  s += `<line x1="${L}" x2="${W - Rp}" y1="${y(0)}" y2="${y(0)}" stroke="var(--mute)" stroke-width="1"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average lean per item in cents">${s}</svg>`;
+}
+function lineChart(el, pts) {
+  if (!pts.length) { el.innerHTML = '<p class="empty">Nothing to show yet.</p>'; return; }
+  const W = Math.max(280, el.clientWidth || 600), H = 180, L = 40, Rp = 22, T = 12, B = 24;
+  const x = i => pts.length === 1 ? (L + W - Rp) / 2 : L + (W - L - Rp) * i / (pts.length - 1), y = v => T + (H - T - B) * (1 - v / 100);
+  let s = '';
+  for (const v of [0, 50, 100]) s += `<line x1="${L}" x2="${W - Rp}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`;
+  s += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + x(i) + ' ' + y(p.v)).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;
+  const every = Math.max(1, Math.ceil(pts.length * 44 / (W - L)));
+  const slot = pts.length > 1 ? (W - L - Rp) / (pts.length - 1) : 40;
+  pts.forEach((p, i) => {
+    s += `<circle cx="${x(i)}" cy="${y(p.v)}" r="4" fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`;
+    if (i % every === 0 || i === pts.length - 1) s += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(p.label)}</text>`;
+    s += `<rect x="${x(i) - slot / 2}" y="0" width="${slot}" height="${H}" fill="transparent" data-tip="${esc(p.tip)}"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="On pitch percentage per session">${s}</svg>`;
+}
+
+// tooltips
+document.addEventListener('pointermove', e => {
+  const t = e.target.closest && e.target.closest('[data-tip]'), tip = $('tip');
+  if (!t) { tip.hidden = true; return; }
+  tip.textContent = t.getAttribute('data-tip'); tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(window.innerWidth - r.width - 8, e.clientX + 12) + 'px';
+  tip.style.top = Math.max(8, e.clientY - r.height - 10) + 'px';
+});
+
+// ---------- History ----------
+const MODES = { blind: 'Blind', checking: 'Checking', partial: 'Partial' };
+let histMode = 'all';
+function renderHistory() {
+  const allRows = store.sessions.filter(s => s.done).map(s => ({ s, st: sessionStats(s) })).filter(r => r.st);
+  const count = m => m === 'all' ? allRows.length : allRows.filter(r => r.st.mode === m).length;
+  $('histFilter').innerHTML = ['all', 'blind', 'checking', 'partial'].map(m => `<button data-mode="${m}"${m === histMode ? ' class="on"' : ''}>${m === 'all' ? 'All' : MODES[m]} (${count(m)})</button>`).join('');
+  $('filterHint').textContent = {
+    all: 'Blind = sang without looking at the feedback. Checking = used it on every vowel. Partial = a bit of both in one session. Tick the box on the Practise screen as you go.',
+    blind: 'Sessions where you never used the visual feedback.',
+    checking: 'Sessions where you used the visual feedback on every vowel.',
+    partial: 'Sessions where you used the feedback on some vowels and not others.',
+  }[histMode];
+  const rows = histMode === 'all' ? allRows : allRows.filter(r => r.st.mode === histMode);
+  if (!rows.length) {
+    $('histTop').innerHTML = `<h2>Your progress</h2><p class="empty">${allRows.length ? `No ${MODES[histMode].toLowerCase()} sessions yet.` : 'No sessions yet. Sing one and it will show up here.'}</p>`;
+    ['chVowels', 'chRel', 'grid', 'chLean', 'sessList'].forEach(id => $(id).innerHTML = '<p class="empty">Nothing to show yet.</p>');
+    return;
+  }
+  const g = gather(rows.map(r => r.st));
+  const ins = [];
+  const mins = Math.round(rows.reduce((x, r) => x + r.st.secs, 0) / 60), nt = rows.reduce((x, r) => x + r.st.takes.length, 0);
+  ins.push(`${rows.length} session${rows.length === 1 ? '' : 's'}, ${nt} takes, ${mins < 1 ? 'under a minute' : mins + ' min'} of held singing measured.`);
+  const leans = rows.map(r => r.st.lean).filter(x => x != null);
+  if (leans.length) ins.push(`All-time average lean: <b>${lean(avg(leans))}</b>, and you were flat in ${leans.filter(x => x < 0).length} of ${leans.length} sessions.`);
+  ins.push(...vowelLines(g, rows.length >= 2 ? 'all' : 'session'));
+  const per = new Map();
+  for (const { st } of rows) for (const n of st.perNote) { if (!per.has(n.m)) per.set(n.m, []); per.get(n.m).push(n.v); }
+  const reg = registerLine(register([...per.entries()].map(([m, a]) => ({ m, v: avg(a) }))));
+  if (reg) ins.push(reg.replace('You go', 'Across every session you go'));
+  // only meaningful when the order was rotated, otherwise position and vowel are the same thing
+  const rot = rows.filter(r => r.s.vorder === 'rotate').flatMap(r => r.st.takes).filter(n => n.st.mean != null);
+  if (rot.length >= 10) {
+    const a = rot.filter(n => n.pos === 0).map(n => n.st.mean), b = rot.filter(n => n.pos > 0).map(n => n.st.mean);
+    if (a.length >= 3 && b.length >= 3 && Math.abs(avg(a) - avg(b)) >= 6) ins.push(`The first vowel after hearing the note sat ${lean(avg(a))}, the later ones ${lean(avg(b))}: you ${avg(b) < avg(a) ? 'drift down' : 'drift up'} once the note has stopped sounding.`);
+  }
+  $('histTop').innerHTML = `<h2>Your progress</h2><ul class="ins">${ins.map(x => `<li>${x}</li>`).join('')}</ul>`;
+
+  leanChart($('chVowels'), g.vowels.map(v => ({ label: v.w, v: v.lean, tip: `“${v.w}”: ${v.lean == null ? 'n/a' : lean(v.lean)}, ${v.onAvg}% on pitch, over ${v.k} take${v.k === 1 ? '' : 's'}` })));
+  const rel = g.vowels.filter(v => v.rel != null);
+  if (rel.length) leanChart($('chRel'), rel.map(v => ({ label: v.w, v: v.rel, tip: `“${v.w}”: ${sgn(v.rel)}¢ against your other vowels on the same note, over ${v.rels.length} take${v.rels.length === 1 ? '' : 's'}` })));
+  else $('chRel').innerHTML = '<p class="empty">Needs at least two vowels sung on the same note.</p>';
+  vowelGrid($('grid'), g);
+  leanChart($('chLean'), rows.map(r => ({ v: r.st.lean, label: ddmm(r.s.start), tip: `${fullDate(r.s.start)}: ${r.st.lean == null ? 'n/a' : lean(r.st.lean)}` })));
+
+  $('sessList').innerHTML = `<div style="overflow-x:auto"><table class="sl"><tr><th>When · mode · range</th><th>On pitch</th><th>Lean</th><th>Flattest vowel</th><th></th></tr>${
+    [...rows].reverse().map(({ s, st }) => {
+      const f = st.byVowel.filter(v => v.lean != null).sort((a, b) => a.lean - b.lean)[0];
+      return `<tr><td><a href="#" data-open="${s.id}">${ddmm(s.start)} ${fullDate(s.start).slice(-5)}</a><br><span style="font-size:11.5px;color:var(--mute)">${st.mode ? MODES[st.mode] : 'Not recorded'} · ${noteName(s.lo)}–${noteName(s.hi)}${s.dir === 'down' ? '↓' : '↑'} · ${s.vowels.map(esc).join(' ')}</span>${s.note ? `<br><span style="font-size:12.5px">📝 ${esc(s.note)}</span>` : ''}</td><td>${st.on}%</td><td>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</td><td>${f ? `${esc(f.w)} ${sgn(f.lean)}¢` : '–'}</td><td class="x"><button data-del="${s.id}" title="Delete this session">✕</button></td></tr>`;
+    }).join('')
+  }</table></div>`;
+}
+$('histFilter').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]'); if (!b) return;
+  histMode = b.dataset.mode; renderHistory();
+});
+$('sessList').addEventListener('click', e => {
+  const o = e.target.closest('[data-open]'), d = e.target.closest('[data-del]');
+  if (o) { e.preventDefault(); const s = store.sessions.find(x => x.id === o.dataset.open); showTab('practise'); renderSummary(s); }
+  if (d) {
+    const s = store.sessions.find(x => x.id === d.dataset.del);
+    if (s && confirm(`Delete the session from ${fullDate(s.start)}? This can't be undone.`)) { store.sessions = store.sessions.filter(x => x !== s); save(); renderHistory(); }
+  }
+});
+
+$('exportBtn').onclick = () => {
+  const d = new Date(), name = `singing-vowel-sessions-${d.toISOString().slice(0, 10)}.json`;
+  const blob = new Blob([JSON.stringify({ app: 'singing-vowel-trainer', v: 1, exported: d.toISOString(), sessions: store.sessions.filter(s => s.done) })], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('importFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text()), have = new Set(store.sessions.map(s => s.id));
+    if (data.app && data.app !== 'singing-vowel-trainer') throw new Error('wrong app');
+    const add = (data.sessions || []).filter(s => s && s.id && Array.isArray(s.notes) && Array.isArray(s.vowels) && !have.has(s.id)).map(s => ({ ...s, done: true }));
+    store.sessions.push(...add); store.sessions.sort((a, b) => a.start < b.start ? -1 : 1); save(); renderHistory();
+    alert(`Imported ${add.length} session${add.length === 1 ? '' : 's'}${add.length ? '' : ' (they were all here already)'}.`);
+  } catch (err) { alert('That file couldn\'t be read as a vowel trainer export.'); }
+  e.target.value = '';
+};
+
+// ---------- Wiring ----------
+function showTab(t) {
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('practise').hidden = t !== 'practise'; $('history').hidden = t !== 'history';
+  if (t === 'history') renderHistory();
+}
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('startBtn').onclick = startSession;
+$('nextBtn').onclick = nextVowel;
+$('replayBtn').onclick = replay;
+$('usedFb').onchange = e => { setFb(e.target.checked); e.target.blur(); };
+$('finishBtn').onclick = finishSession;
+$('tunerBtn').onclick = async () => { if (micOn && !sess) micOff(); else await ensureMic(); };
+document.addEventListener('keydown', e => {
+  if (!sess || e.metaKey || e.ctrlKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  // blur first: a focused button would otherwise fire its own click on keyup and skip a vowel
+  if (document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
+  if (e.code === 'Space') { e.preventDefault(); nextVowel(); }
+  else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); replay(); }
+  else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFb(!$('usedFb').checked); }
+});
+// keep what's been sung if the tab is closed mid-session
+addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!$('history').hidden) renderHistory(); }, 200); });
+</script>
+</body>
+</html>
