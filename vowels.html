@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-app="sing">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -105,10 +105,14 @@
   table.grid th:first-child, table.grid td:first-child { text-align:left; font-weight:600; color:var(--ink); }
   table.grid td.c { border-radius:4px; border-bottom:2px solid var(--card); }
 </style>
+<meta name="theme-color" content="#141A17" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#E9F0E6" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="evening.css">
 <script src="teach-tools.js"></script>
 </head>
 <body>
 <main>
+  <p class="ma-brand"><svg viewBox="-12 -12 779 339" aria-hidden="true"><polyline points="0,158 85,158 159,315 159,0 292,315 425,0 425,315 559,0 693,315 533,158 755,158" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/></svg>Matthew Annable</p>
   <h1>Singing Vowel Trainer</h1>
   <p class="sub">Hear a note, then sing it once on each vowel, in the order you choose. It tells you which vowel is next, and keeps track of which vowels you tend to sing flat or sharp. <a href="index.html" style="color:var(--accent)">Single-note ladder →</a> <a href="one-five-one.html" style="color:var(--accent);margin-left:8px">1–5–1 →</a></p>
   <nav class="tabs"><button data-tab="practise" class="on">Practise</button><button data-tab="history">History</button></nav>

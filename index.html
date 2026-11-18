@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-app="sing">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -91,10 +91,14 @@
   table.sl th, table.sl td { padding-left:4px; padding-right:4px; }
   .empty { color:var(--mute); font-size:14px; }
 </style>
+<meta name="theme-color" content="#141A17" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#E9F0E6" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="evening.css">
 <script src="teach-tools.js"></script>
 </head>
 <body>
 <main>
+  <p class="ma-brand"><svg viewBox="-12 -12 779 339" aria-hidden="true"><polyline points="0,158 85,158 159,315 159,0 292,315 425,0 425,315 559,0 693,315 533,158 755,158" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/></svg>Matthew Annable</p>
   <h1>Singing Pitch Trainer</h1>
   <p class="sub">Hear a note, sing it, hold it. Every session is saved, so you can see which way you lean and whether it's improving. <a href="one-five-one.html" style="color:var(--accent)">1–5–1 version →</a> <a href="vowels.html" style="color:var(--accent);margin-left:8px">Vowels →</a></p>
   <nav class="tabs"><button data-tab="practise" class="on">Practise</button><button data-tab="history">History</button></nav>
@@ -115,6 +119,7 @@
       <p class="hint" id="phonesHint"></p>
       <div class="row" style="margin:0">
         <button class="primary big" id="startBtn">Start session</button>
+        <button id="skipBtn" hidden>Skip the wait</button>
         <button id="tunerBtn">Just the tuner</button>
       </div>
     </div>
@@ -135,7 +140,6 @@
       <div class="meterlbl"><span>♭ flat</span><span id="verdict"></span><span>sharp ♯</span></div>
       <canvas id="trace"></canvas>
       <div class="notestat" id="noteStat"></div>
-      <div class="row" id="fbRow" hidden style="margin:12px 0 0"><label><input type="checkbox" id="usedFb"> I'm using the visual feedback on this note<kbd>F</kbd></label></div>
       <div class="controls" id="controls" hidden>
         <button id="replayBtn">🔁 Hear again<kbd>R</kbd></button>
         <button class="primary big" id="nextBtn">Next note ↑<kbd>Space</kbd></button>
@@ -372,10 +376,11 @@ function noteStats(f) {
 function sessionStats(s) {
   const notes = s.notes.map(n => ({ m: n.m, replays: n.r || 0, fb: n.v == null ? null : !!n.v, st: noteStats(n.f) })).filter(n => n.st);
   if (!notes.length) return null;
-  // Per note you tick "using the visual feedback"; the session is blind (none), checking (all) or partial (some).
-  // Sessions saved before this existed have no answer, so mode is null and they only show under "All".
+  // Blind or checking is one answer for the whole session (s.mode), set on its summary and changeable any time.
+  // Sessions saved when it was ticked per note have no s.mode, so it is worked out from those ticks (all/none/some = checking/blind/partial).
+  // Sessions with neither have mode null and only show under "All".
   const tagged = notes.filter(n => n.fb != null), nFb = tagged.filter(n => n.fb).length;
-  const mode = !tagged.length ? null : nFb === 0 ? 'blind' : nFb === tagged.length ? 'checking' : 'partial';
+  const mode = s.mode || (!tagged.length ? null : nFb === 0 ? 'blind' : nFb === tagged.length ? 'checking' : 'partial');
   const withMean = notes.filter(n => n.st.mean != null);
   return {
     notes, withMean, mode,
@@ -413,19 +418,20 @@ async function ensureAudio() {
 // mic opens waits for that to pass. Measured on a real recording, 30/10/2026.
 let isWebKit = /Safari/.test(navigator.userAgent) && !/Chrome|Chromium|Edg/.test(navigator.userAgent);
 const MIC_SETTLE = 20000;
-let micOpenedAt = 0, settling = false, cancelSettle = false;
+let micOpenedAt = 0, settling = false, cancelSettle = false, skipSettle = false;
 function settleMic() {
   return new Promise(resolve => {
-    const finish = ok => { settling = false; $('startBtn').textContent = 'Start session'; if (!ok) $('msg').textContent = 'Listening.'; resolve(ok); };
+    const finish = ok => { settling = false; skipSettle = false; $('skipBtn').hidden = true; $('startBtn').textContent = 'Start session'; if (!ok) $('msg').textContent = 'Listening.'; resolve(ok); };
     const tick = () => {
+      if (skipSettle) return finish(true);
       if (cancelSettle) { cancelSettle = false; return finish(false); }
       const left = MIC_SETTLE - (performance.now() - micOpenedAt);
       if (left <= 0) return finish(true);
       $('startBtn').textContent = `Mic settling… ${Math.ceil(left / 1000)}s`;
-      $('msg').textContent = 'Safari can read about a semitone sharp just after the mic opens, so this gives it time. Tap again to cancel.';
+      $('msg').textContent = 'Safari can read about a semitone sharp just after the mic opens, so this gives it time. Tap Start again to cancel, or Skip the wait to begin now (early notes may read sharp).';
       setTimeout(tick, 250);
     };
-    settling = true; tick();
+    settling = true; $('skipBtn').hidden = false; tick();
   });
 }
 async function ensureMic() {
@@ -575,7 +581,7 @@ async function startSession() {
   store.sessions.push(rec); save();
   sess = { rec, order, i: -1, cur: null };
   $('setup').querySelectorAll('select,input,#startBtn').forEach(e => e.disabled = true);
-  $('controls').hidden = false; $('fbRow').hidden = false; $('summary').hidden = true;
+  $('controls').hidden = false; $('summary').hidden = true;
   try { wake = await navigator.wakeLock.request('screen'); } catch (e) {}
   nextNote();
 }
@@ -584,7 +590,7 @@ function nextNote() {
   if (sess.i + 1 >= sess.order.length) return finishSession();
   sess.i++;
   const m = sess.order[sess.i];
-  sess.cur = { m, r: 0, v: $('usedFb').checked ? 1 : 0, f: [], t0: null };   // v: 1 = used the visual feedback; carries over from the last note
+  sess.cur = { m, r: 0, f: [], t0: null };
   sess.rec.notes.push(sess.cur);
   save();
   hist3.length = 0;
@@ -596,10 +602,6 @@ function nextNote() {
   playRef(m);
   // timings count from when you can start singing
   sess.cur.t0 = S.phones ? performance.now() : refEnd;
-}
-function setFb(on) {
-  $('usedFb').checked = on;
-  if (sess && sess.cur) { sess.cur.v = on ? 1 : 0; save(); }
 }
 function replay() {
   if (!sess || !sess.cur) return;
@@ -623,7 +625,7 @@ function finishSession() {
   rec.notes = rec.notes.filter(n => n.f.length);
   sess = null;
   $('setup').querySelectorAll('select,input,#startBtn').forEach(e => e.disabled = false);
-  $('controls').hidden = true; $('fbRow').hidden = true;
+  $('controls').hidden = true;
   $('target').textContent = '–'; $('playing').textContent = ''; $('noteStat').textContent = ''; $('strip').innerHTML = '';
   if (wake) { wake.release().catch(() => {}); wake = null; }
   const st = sessionStats(rec);
@@ -651,6 +653,9 @@ function renderSummary(rec) {
       <div class="tile"><b>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</b><span>average lean (${st.lean == null ? 'n/a' : st.lean < 0 ? 'flat' : 'sharp'})</span></div>
       <div class="tile"><b>${finds.length ? median(finds).toFixed(1) + 's' : '–'}</b><span>to find the note (median)</span></div>
     </div>
+    <h2>Was it blind or checking?</h2>
+    <div class="row" id="modePick" style="margin:0 0 6px"><button data-m="blind"${st.mode === 'blind' ? ' class="primary"' : ''}>Blind</button><button data-m="checking"${st.mode === 'checking' ? ' class="primary"' : ''}>Checking</button>${st.mode === 'partial' ? '<span class="hint" style="margin:0">Recorded note by note as a mix. Pick one to replace it.</span>' : ''}</div>
+    <p class="hint" style="margin:0 0 12px">Blind = you didn't look at the feedback while singing. Checking = you did. One answer for the whole session; change it whenever.</p>
     <h2>What I tried</h2>
     <textarea id="sessNote" rows="2" style="width:100%;font:inherit;font-size:15px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)" placeholder="e.g. thought higher, breathed from the belly">${esc(rec.note || '')}</textarea>
     <h2 style="margin-top:14px">What stood out</h2>
@@ -665,6 +670,7 @@ function renderSummary(rec) {
     <div class="row" style="margin:14px 0 0"><button id="discardBtn">Discard this session</button></div>`;
   el.hidden = false;
   leanChart($('sumChart'), st.notes.map(n => ({ label: noteName(n.m), v: n.st.mean, tip: `${noteName(n.m)}: ${n.st.mean == null ? 'mostly off the note' : lean(n.st.mean)} · ${n.st.on}% on pitch` })));
+  $('modePick').onclick = e => { const b = e.target.closest('[data-m]'); if (b) { rec.mode = b.dataset.m; save(); renderSummary(rec); if (!$('history').hidden) renderHistory(); } };
   $('sessNote').onchange = () => { rec.note = $('sessNote').value.trim(); save(); };
   $('discardBtn').onclick = () => {
     if (!confirm('Discard this session? It won\'t count in your history.')) return;
@@ -763,7 +769,7 @@ function renderHistory() {
   const count = m => m === 'all' ? allRows.length : allRows.filter(r => r.st.mode === m).length;
   $('histFilter').innerHTML = ['all', 'blind', 'checking', 'partial'].map(m => `<button data-mode="${m}"${m === histMode ? ' class="on"' : ''}>${m === 'all' ? 'All' : MODES[m]} (${count(m)})</button>`).join('');
   $('filterHint').textContent = {
-    all: 'Blind = sang without looking at the feedback. Checking = used it on every note. Partial = a bit of both in one session. Tick the box on the Practise screen for each note.',
+    all: 'Blind = sang without looking at the feedback. Checking = looked at it. Set once per session on its summary, and you can change it afterwards. Partial only appears on older sessions that were ticked note by note.',
     blind: 'Sessions where you never used the visual feedback.',
     checking: 'Sessions where you used the visual feedback on every note.',
     partial: 'Sessions where you used the feedback on some notes and not others.',
@@ -859,8 +865,8 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab
 $('startBtn').onclick = startSession;
 $('nextBtn').onclick = nextNote;
 $('replayBtn').onclick = replay;
-$('usedFb').onchange = e => { setFb(e.target.checked); e.target.blur(); };
 $('finishBtn').onclick = finishSession;
+$('skipBtn').onclick = () => { skipSettle = true; };
 $('tunerBtn').onclick = async () => { if (micOn && !sess) micOff(); else await ensureMic(); };
 document.addEventListener('keydown', e => {
   if (!sess || e.metaKey || e.ctrlKey || /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
@@ -868,7 +874,6 @@ document.addEventListener('keydown', e => {
   if (document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
   if (e.code === 'Space') { e.preventDefault(); nextNote(); }
   else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); replay(); }
-  else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setFb(!$('usedFb').checked); }
 });
 // keep what's been sung if the tab is closed mid-session
 addEventListener('pagehide', save);

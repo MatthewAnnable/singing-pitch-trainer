@@ -1,0 +1,162 @@
+/* Matthew Annable — the "Evening" look for the student practice apps.
+ *
+ * The same look as the student portal (Lesson Booking System/static/css/
+ * portal.css): the brand green and amber on a dark forest ground with a touch
+ * of lilac, blue and clay, Manrope for everything, no serif. Dark by default;
+ * a matching day theme takes over when the device is set to light. Each app links its own copy of
+ * this file as evening.css AFTER its own <style>, so this file wins.
+ *
+ * THIS IS THE MASTER. Edit it here, then copy it over evening.css in each app
+ * folder under Student Apps/ (see README.md beside this file).
+ *
+ * Every app looks like part of one family but has its own pair of colours,
+ * chosen by <html data-app="…">:
+ *   --accent  selected tabs and pills, sliders, highlights
+ *   --action  the main button
+ *   --glow    the soft light in the top corner of the page
+ */
+
+@font-face {
+  font-family: 'Manrope'; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url("fonts/manrope-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Manrope'; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url("fonts/manrope-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* The five brand colours, lifted for a dark ground. --on-… is the text
+     colour that sits on each one when it is used as a fill. */
+  --moss: #9CCB96;  --on-moss: #141A17;  --glow-moss: #24332A;
+  --amber: #F7B955; --on-amber: #141A17; --glow-amber: #332E22;
+  --lilac: #C2B0F0; --on-lilac: #141A17; --glow-lilac: #2D2A3B;
+  --sky: #8FBCE6;   --on-sky: #141A17;   --glow-sky: #22303B;
+  --clay: #EC9C86;  --on-clay: #141A17;  --glow-clay: #3A2824;
+
+  /* the names the apps already use */
+  --bg: #141A17;
+  --card: #1D2521;
+  --chip: #26332C;
+  --ink: #EEF0E8;
+  --mute: #A2ADA3;
+  --line: #3A4A40;
+  --line-soft: #2B3630;
+
+  --good: #9CCB96; --goodbg: #22302A; --ok: #9CCB96;
+  --warn: #F7B955;
+  --bad: #F0A29A;  --badbg: #3A2422;
+  --flat: #86B4F0; --sharp: #F0A29A;   /* singing: which way the note leans */
+  --band: #26332C; --grid: #2B3630;
+  --s1: #86B4F0; --s2: #F7B955; --s3: #C2B0F0;
+
+  /* fretboards */
+  --board: #222C27; --wire: #3A4A40; --string: #8C978E;
+  --pale: #22303B; --paleline: #5F86A8; --accpale: #332E22; --win: rgba(143,188,230,.12);
+}
+
+/* Day: the same look with the lights on. A pale sage ground, and the five
+   colours deepened so they hold up on a bright screen. Follows the device. */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --moss: #3F7A4A;  --on-moss: #FFFFFF;  --glow-moss: #D9EAD5;
+    --amber: #F2A93B; --on-amber: #18241D; --glow-amber: #F3EAD2;
+    --lilac: #6B5BB5; --on-lilac: #FFFFFF; --glow-lilac: #E2E0F2;
+    --sky: #2F6FA8;   --on-sky: #FFFFFF;   --glow-sky: #D9E7F1;
+    --clay: #B8503F;  --on-clay: #FFFFFF;  --glow-clay: #F1DFD9;
+
+    --bg: #E9F0E6;
+    --card: #F9FCF7;
+    --chip: #DDE7D9;
+    --ink: #18241D;
+    --mute: #566A5C;
+    --line: #C9D6C5;
+    --line-soft: #D6E0D2;
+
+    --good: #3F7A4A; --goodbg: #D9EAD5; --ok: #3F7A4A;
+    --warn: #C98A1B;
+    --bad: #B8503F;  --badbg: #F4DFDA;
+    --flat: #2F6FA8; --sharp: #B8503F;
+    --band: #DDE7D9; --grid: #D3DECF;
+    --s1: #2F6FA8; --s2: #C98A1B; --s3: #6B5BB5;
+
+    --board: #DCE5D6; --wire: #B9C7B4; --string: #7C8B80;
+    --pale: #D9E7F1; --paleline: #7FA6C8; --accpale: #F3EAD2; --win: rgba(47,111,168,.10);
+  }
+}
+
+/* One pairing per app: --accent for selected tabs, pills and sliders,
+   --action for the main button, --glow for the light in the corner.
+   Ideas for future apps are in README.md beside the master copy. */
+html              { --accent: var(--moss);  --on-accent: var(--on-moss);  --action: var(--amber); --on-action: var(--on-amber); --glow: var(--glow-moss); }
+html[data-app="ear"]   { --accent: var(--moss);  --on-accent: var(--on-moss);  --action: var(--amber); --on-action: var(--on-amber); --glow: var(--glow-moss); }
+html[data-app="notes"] { --accent: var(--amber); --on-accent: var(--on-amber); --action: var(--moss);  --on-action: var(--on-moss);  --glow: var(--glow-amber); }
+html[data-app="sing"]  { --accent: var(--lilac); --on-accent: var(--on-lilac); --action: var(--amber); --on-action: var(--on-amber); --glow: var(--glow-lilac); }
+html[data-app="metro"] { --accent: var(--clay);  --on-accent: var(--on-clay);  --action: var(--moss);  --on-action: var(--on-moss);  --glow: var(--glow-clay); }
+html[data-app="neck"]  { --accent: var(--sky);   --on-accent: var(--on-sky);   --action: var(--amber); --on-action: var(--on-amber); --glow: var(--glow-sky);
+  --dot: var(--sky); --dotink: var(--on-sky); --acc: var(--amber); }
+
+html { background: var(--bg); }
+body {
+  background: radial-gradient(120% 520px at 85% 0%, var(--glow) 0%, var(--bg) 70%) no-repeat, var(--bg);
+  color: var(--ink);
+  font-family: Manrope, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+h1 { font-weight: 800; font-size: clamp(26px, 6.5vw, 34px); line-height: 1.08; letter-spacing: -0.03em; margin-bottom: 10px; }
+h2 { letter-spacing: -0.015em; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+
+/* The name and zigzag above each app's title, as on the portal. */
+.ma-brand {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 14px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--mute);
+}
+.ma-brand svg { width: 38px; height: 17px; flex: none; color: var(--accent); }
+
+.card { border-radius: 16px; border-color: var(--line-soft); }
+input[type=range] { accent-color: var(--accent); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+select, input[type=text], input[type=number] { background: var(--card); color: var(--ink); border-color: var(--line); }
+
+/* Selected tabs and pills take the app's accent. */
+.pill, .tabs button { border-radius: 999px; }
+.pill.on, .tabs button.on, .ghost.on, #modes .chip.on {
+  background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+}
+/* The main button takes the app's action colour. */
+.big, button.primary {
+  background: var(--action); border-color: var(--action); color: var(--on-action);
+  border-radius: 999px; font-weight: 700;
+}
+.ghost { border-radius: 999px; }
+
+/* Ear Trainer */
+.ans .pick, .box td span.root { color: var(--on-accent); }
+.fb .dot text { fill: var(--on-accent); }
+.fb .root text { fill: var(--bg); }
+.fb .g-both text, .fb .g-major text, .fb .g-minor text, .fb .g-none text { fill: #fff; }
+html[data-app="neck"] .fb .dot.root text { fill: var(--bg); }
+html[data-app="neck"] .fb .dot.faded text { fill: var(--ink); }
+
+/* Note Reading: plain buttons are filled, so the dark text goes on all of
+   them, and only the Start buttons take the action colour. */
+html[data-app="notes"] button { color: var(--on-accent); border-radius: 999px; }
+html[data-app="notes"] button.alt, html[data-app="notes"] .tabs button { color: var(--ink); }
+html[data-app="notes"] .tabs button.on { color: var(--on-accent); }
+html[data-app="notes"] #pStart, html[data-app="notes"] #tStart, html[data-app="notes"] #lStart { background: var(--action); color: var(--on-action); }
+html[data-app="notes"] .big { background: none; border-radius: 0; color: inherit; }
+
+/* Fading Metronome */
+.tempo .bpm { min-width: 0; white-space: nowrap; }
+.beats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.beat { min-width: 0; aspect-ratio: auto; height: 30px; }
+.beat.now.audible { color: var(--on-accent); }
