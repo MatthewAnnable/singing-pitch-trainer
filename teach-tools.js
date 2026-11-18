@@ -18,16 +18,27 @@
   "use strict";
 
   // ---------- 1. Sound ----------
-  try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
+  // Only iPhone and iPad need this (a Mac has no silent setting). iPads report
+  // themselves as Macs, so tell them apart by touch.
+  const touchApple = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  const session = touchApple ? navigator.audioSession : null;
+  try { if (session) session.type = "playback"; } catch (e) {}
 
   // "playback" can't record, so switch to "play-and-record" (still not muted
-  // by the silent setting) just before any app asks for the microphone.
+  // by the silent setting) just before any app asks for the microphone. If
+  // Safari still refuses, hand the choice back to Safari and ask once more.
   const md = navigator.mediaDevices;
-  if (md && md.getUserMedia && navigator.audioSession) {
+  if (md && md.getUserMedia && session) {
     const gum = md.getUserMedia.bind(md);
     md.getUserMedia = function (c) {
-      if (c && c.audio) { try { navigator.audioSession.type = "play-and-record"; } catch (e) {} }
-      return gum(c);
+      if (!(c && c.audio)) return gum(c);
+      try { session.type = "play-and-record"; } catch (e) {}
+      return gum(c).catch(err => {
+        if (err && err.name === "NotAllowedError" && !/AudioSession/i.test(err.message || "")) throw err;
+        try { session.type = "auto"; } catch (e) {}
+        return gum(c);
+      });
     };
   }
 
