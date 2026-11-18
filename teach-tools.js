@@ -20,6 +20,17 @@
   // ---------- 1. Sound ----------
   try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
 
+  // "playback" can't record, so switch to "play-and-record" (still not muted
+  // by the silent setting) just before any app asks for the microphone.
+  const md = navigator.mediaDevices;
+  if (md && md.getUserMedia && navigator.audioSession) {
+    const gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function (c) {
+      if (c && c.audio) { try { navigator.audioSession.type = "play-and-record"; } catch (e) {} }
+      return gum(c);
+    };
+  }
+
   const contexts = [];
   const Base = window.AudioContext || window.webkitAudioContext;
   if (Base) {
