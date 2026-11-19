@@ -567,7 +567,8 @@
       if ($('vol')) $('vol').disabled = false;
       let t = running ? '' : msg.textContent.trim();
       if (t === 'Listening.' || t === 'Mic off.') t = '';
-      if (/^Couldn't use the microphone|can't reach the microphone/.test(t)) t += ' ' + MIC_HELP;
+      if (/AudioSession/i.test(t)) t = 'The microphone didn\'t start this time. Tap Start session again.';
+      else if (/^Couldn't use the microphone|can't reach the microphone/.test(t)) t += ' ' + MIC_HELP;
       p.textContent = t; p.hidden = !t;
     };
     new MutationObserver(sync).observe(msg, { childList: true, characterData: true, subtree: true });
@@ -595,7 +596,13 @@
       let waiting = true;
       if ($('msg')) $('msg').textContent = 'Asking to use the microphone…';
       const t = setTimeout(() => { if (waiting && $('msg')) $('msg').textContent = 'Waiting for the microphone. Look for a box asking to use it and tap Allow.'; }, 4000);
-      return gum(c).finally(() => { waiting = false; clearTimeout(t); });
+      // If Safari still says its audio setting can't record, hand the setting
+      // back to Safari and ask once more before telling the student anything.
+      return gum(c).catch(err => {
+        if (!/AudioSession/i.test((err && err.message) || '')) throw err;
+        try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch (e) {}
+        return new Promise(r => setTimeout(r, 300)).then(() => gum(c));
+      }).finally(() => { waiting = false; clearTimeout(t); });
     };
   }
   // Safari can leave resume() unanswered (after a call, or another app took the

@@ -22,7 +22,16 @@
   // themselves as Macs, so tell them apart by touch.
   const touchApple = /iP(hone|ad|od)/.test(navigator.userAgent) ||
     (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-  const session = touchApple ? navigator.audioSession : null;
+  // Apps that use the microphone mark <html data-mic> and are left entirely
+  // to Safari's own audio handling. Setting "playback" and switching to
+  // "play-and-record" just before asking for the mic failed at random on iPhone
+  // and iPad ("AudioSession category is not compatible with audio capture"),
+  // because by then the app's sound was already running and Safari wouldn't
+  // change over. Safari's default is what the singing trainer used without
+  // trouble until 18/11/2026, and once the mic is on its sound isn't muted by
+  // the silent setting either. (Fixed 19/11/2026.)
+  const micApp = document.documentElement.hasAttribute("data-mic");
+  const session = touchApple && !micApp ? navigator.audioSession : null;
   try { if (session) session.type = "playback"; } catch (e) {}
 
   // "playback" can't record, so switch to "play-and-record" (still not muted
@@ -56,7 +65,7 @@
   // alongside switches Safari to the media channel instead.
   let silent = null;
   function silentFallback() {
-    if (navigator.audioSession || silent) return;
+    if (micApp || navigator.audioSession || silent) return;
     const rate = 8000, n = 800, bytes = new Uint8Array(44 + n);
     const dv = new DataView(bytes.buffer);
     const str = (o, s) => { for (let i = 0; i < s.length; i++) bytes[o + i] = s.charCodeAt(i); };
