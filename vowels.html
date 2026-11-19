@@ -109,7 +109,7 @@
 <meta name="theme-color" content="#E9F0E6" media="(prefers-color-scheme: light)">
 <link rel="stylesheet" href="evening.css">
 <script src="teach-tools.js?v=3"></script>
-<script src="sing-core.js?v=3"></script>
+<script src="sing-core.js?v=4"></script>
 </head>
 <body>
 <main>
@@ -432,7 +432,7 @@ const hist3 = [];                 // last three pitch readings, for a median fil
 let live = { c: null, m: null };  // what's being heard now
 async function ensureAudio() {
   actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-  if (actx.state === 'suspended') await actx.resume();
+  await SC.resume(actx);
 }
 // Safari (and every browser on an iPhone, which all use its engine) clears a backlog
 // from opening the mic by running it 5% fast, which reads about 85¢ sharp, for up to

@@ -102,7 +102,7 @@
       comp.threshold.value = -10; comp.ratio.value = 4;
       out.connect(comp).connect(actx.destination);
     }
-    if (actx.state === 'suspended') { try { await actx.resume(); } catch (e) {} }
+    await SC.resume(actx);
     return actx;
   };
   SC.now = () => actx ? actx.currentTime : 0;
@@ -496,6 +496,64 @@
     document.querySelectorAll('[data-lab]').forEach(e => { e.hidden = !SC.lab; });
     document.querySelectorAll('[data-student]').forEach(e => { e.hidden = SC.lab; });
   };
+
+  // ---------- What Start is doing, right under the Start button ----------
+  // Every page writes its messages to #msg, at the bottom of the live card. On a
+  // phone that's off the bottom of the screen, so a student pressing Start and
+  // being refused the mic (or waiting on the permission box, or on Safari's
+  // settle wait) saw nothing happen. Until a session is running, whatever #msg
+  // says is repeated under the Start button, with help when the mic is refused.
+  const MIC_HELP = 'If you opened this from an email or chat app, open it in Safari or Chrome instead. ' +
+    'If you tapped Don\'t Allow: on iPhone or iPad, tap the aA or ⋯ button by the address, then Website Settings › Microphone › Allow; ' +
+    'on Android, tap the icon left of the address, then Permissions › Microphone. Then reload the page.';
+  function startStatus() {
+    const btn = $('startBtn'), msg = $('msg'), row = btn && btn.parentElement;
+    if (!btn || !msg || !row || $('startMsg')) return;
+    const p = document.createElement('p');
+    p.id = 'startMsg'; p.className = 'msg'; p.setAttribute('role', 'status');
+    p.style.cssText = 'margin:10px 0 0;font-weight:600';
+    row.after(p);
+    let wasRunning = false;
+    const sync = () => {
+      const running = $('controls') && !$('controls').hidden;
+      // on a phone the note to sing starts near the bottom of the screen: bring it up
+      if (running && !wasRunning && $('live') && $('live').getBoundingClientRect().top > window.innerHeight * 0.4) {
+        $('live').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      wasRunning = running;
+      let t = running ? '' : msg.textContent.trim();
+      if (t === 'Listening.' || t === 'Mic off.') t = '';
+      if (/^Couldn't use the microphone|can't reach the microphone/.test(t)) t += ' ' + MIC_HELP;
+      p.textContent = t; p.hidden = !t;
+    };
+    new MutationObserver(sync).observe(msg, { childList: true, characterData: true, subtree: true });
+    if ($('controls')) new MutationObserver(sync).observe($('controls'), { attributes: true, attributeFilter: ['hidden'] });
+    // anything that breaks while starting shows here rather than failing silently
+    window.addEventListener('unhandledrejection', e => {
+      const r = e.reason;
+      msg.textContent = 'Something went wrong starting (' + ((r && (r.message || r.name)) || r) + '). Reload the page and try again.';
+    });
+    sync();
+  }
+  document.addEventListener('DOMContentLoaded', startStatus);
+
+  // Say so the moment the mic is asked for, and nudge if the permission box
+  // hasn't been answered after a few seconds.
+  const md = navigator.mediaDevices;
+  if (md && md.getUserMedia) {
+    const gum = md.getUserMedia.bind(md);
+    md.getUserMedia = function (c) {
+      if (!(c && c.audio)) return gum(c);
+      let waiting = true;
+      if ($('msg')) $('msg').textContent = 'Asking to use the microphone…';
+      const t = setTimeout(() => { if (waiting && $('msg')) $('msg').textContent = 'Waiting for the microphone. Look for a box asking to use it and tap Allow.'; }, 4000);
+      return gum(c).finally(() => { waiting = false; clearTimeout(t); });
+    };
+  }
+  // Safari can leave resume() unanswered (after a call, or another app took the
+  // sound). Never wait on it for more than a moment: the next tap retries it.
+  SC.resume = ctx => ctx.state === 'running' ? Promise.resolve()
+    : Promise.race([ctx.resume().catch(() => {}), new Promise(r => setTimeout(r, 1500))]);
 
   // ---------- Trainer ----------
   // A session is a list of prompts. Each prompt has a note to sing (target, midi)
