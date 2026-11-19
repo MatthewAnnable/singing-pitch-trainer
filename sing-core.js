@@ -41,7 +41,7 @@
     { href: 'notes.html', name: 'Single notes', blurb: 'Hear a note, sing it, hold it. Walk up or down your range.', students: true,
       lab: 'Lab: real piano and guitar recordings in the Sound menu.' },
     { href: 'one-five-one.html', name: '1–5–1', blurb: 'Sing the root, up to the 5th, and back down to the root.', students: true },
-    { href: 'vowels.html', name: 'Vowels', blurb: 'Sing each note on a list of vowels and see which ones pull you flat or sharp.', students: true },
+    { href: 'vowels.html', name: 'Vowels', blurb: 'Sing each note on a list of vowels and see which ones pull you flat or sharp.', students: false },
     { href: 'harmony.html', name: 'Harmony', blurb: 'A melody note rings out; sing a 3rd above, a 3rd below or a 6th below it, all in one key.', students: false, beta: true,
       lab: 'Lab: minor keys, 4ths, 5ths and 6th above, the key chord before every one, and the interval you\'re singing shown live.' },
     { href: 'chord-tones.html', name: 'Sing from a chord', blurb: 'A real guitar or piano plays a chord; sing its root, 3rd or 5th in tune over it.', students: false, beta: true,
