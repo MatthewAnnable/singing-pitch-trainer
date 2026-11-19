@@ -109,7 +109,7 @@
 <meta name="theme-color" content="#E9F0E6" media="(prefers-color-scheme: light)">
 <link rel="stylesheet" href="evening.css">
 <script src="teach-tools.js?v=3"></script>
-<script src="sing-core.js?v=4"></script>
+<script src="sing-core.js?v=5"></script>
 </head>
 <body>
 <main>
@@ -140,6 +140,7 @@
         <label><input type="checkbox" id="anyoct"> Any octave counts</label>
         <label><input type="checkbox" id="phones"> I'm wearing headphones</label>
         <label>Mic sensitivity <input type="range" id="gate" min="0" max="100"></label>
+        <label>Note volume <input type="range" id="vol" min="100" max="150" step="5"></label>
       </div>
       <p class="hint" id="phonesHint"></p>
       <div class="row" style="margin:0">
@@ -230,7 +231,7 @@ function load() {
   let s = null;
   try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   s = s && s.sessions ? s : { sessions: [] };
-  s.settings = Object.assign({ lo: 48, hi: 57, dir: 'up', sound: 'piano', anyOct: true, phones: false, gate: 60, vowels: 'ee eh ah oh oo', hold: 1.5, vorder: 'same', auto: true }, s.settings || {});
+  s.settings = Object.assign({ lo: 48, hi: 57, dir: 'up', sound: 'piano', anyOct: true, phones: false, gate: 60, vol: SC.VOL_DEFAULT, vowels: 'ee eh ah oh oo', hold: 1.5, vorder: 'same', auto: true }, s.settings || {});
   s.sessions.forEach(x => { x.done = true; });   // anything unfinished ended when the tab closed
   return s;
 }
@@ -246,7 +247,7 @@ const parseVowels = s => [...new Set(String(s || '').toLowerCase().split(/[\s,\/
 // ---------- Setup controls ----------
 for (const id of ['lo', 'hi']) for (let m = LOWEST; m <= HIGHEST; m++) $(id).add(new Option(noteName(m), m));
 $('lo').value = S.lo; $('hi').value = S.hi; $('dir').value = S.dir; $('sound').value = S.sound;
-$('anyoct').checked = S.anyOct; $('phones').checked = S.phones; $('gate').value = S.gate;
+$('anyoct').checked = S.anyOct; $('phones').checked = S.phones; $('gate').value = S.gate; $('vol').value = S.vol; SC.setVolume(S.vol);
 $('vowels').value = S.vowels; $('hold').value = String(S.hold); $('vorder').value = S.vorder; $('auto').checked = S.auto;
 function phonesHint() {
   $('phonesHint').textContent = S.phones
@@ -260,9 +261,9 @@ function vowelHint() {
     : 'Type the vowels you\'ll sing, e.g. ee eh ah oh oo.';
 }
 phonesHint(); vowelHint();
-for (const id of ['lo', 'hi', 'dir', 'sound', 'anyoct', 'phones', 'gate', 'vowels', 'hold', 'vorder', 'auto']) $(id).addEventListener(id === 'vowels' ? 'input' : 'change', () => {
+for (const id of ['lo', 'hi', 'dir', 'sound', 'anyoct', 'phones', 'gate', 'vol', 'vowels', 'hold', 'vorder', 'auto']) $(id).addEventListener(id === 'vowels' ? 'input' : 'change', () => {
   S.lo = +$('lo').value; S.hi = +$('hi').value; S.dir = $('dir').value; S.sound = $('sound').value;
-  S.anyOct = $('anyoct').checked; S.phones = $('phones').checked; S.gate = +$('gate').value;
+  S.anyOct = $('anyoct').checked; S.phones = $('phones').checked; S.gate = +$('gate').value; S.vol = +$('vol').value; SC.setVolume(S.vol);
   S.vowels = $('vowels').value; S.hold = +$('hold').value; S.vorder = $('vorder').value; S.auto = $('auto').checked;
   phonesHint(); vowelHint(); save();
 });
@@ -336,7 +337,7 @@ function playRef(midi) {
   src.buffer = buf; src.playbackRate.value = rate;
   const len = S.phones ? 2.8 : 1.8, t = actx.currentTime;
   g.gain.setValueAtTime(1, t); g.gain.setValueAtTime(1, t + len - 0.15); g.gain.linearRampToValueAtTime(0, t + len);
-  src.connect(g).connect(actx.destination);
+  src.connect(g).connect(SC.outFor(actx));
   src.start(t); src.stop(t + len + 0.05);
   ref = { src, g };
   refEnd = performance.now() + (S.phones ? 0 : len * 1000 + 150);

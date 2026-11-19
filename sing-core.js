@@ -92,6 +92,38 @@
     return s;
   };
 
+  // ---------- Note volume ----------
+  // The "Note volume" slider: 100 = how loud the notes always were, 115 by
+  // default (students found them quiet on iPhone and iPad), up to 150. Every
+  // sound goes out through outFor(its context): the volume, then a soft ceiling
+  // that leaves anything below 0.9 untouched and rounds off the loudest peaks
+  // instead of letting them crack.
+  SC.VOL_DEFAULT = 115;
+  let vol = SC.VOL_DEFAULT / 100;
+  const outs = new Map();   // AudioContext -> its volume node
+  let ceiling = null;
+  SC.outFor = function (ctx) {
+    if (!outs.has(ctx)) {
+      if (!ceiling) {
+        ceiling = new Float32Array(4097);
+        for (let i = 0; i < ceiling.length; i++) {
+          const x = (i / 2048 - 1) * 1.6, a = Math.abs(x);   // curve spans -1.6..1.6
+          ceiling[i] = (a < 0.9 ? x : Math.sign(x) * (0.9 + 0.1 * Math.tanh((a - 0.9) / 0.1))) / 1.6;
+        }
+      }
+      const g = ctx.createGain(), pre = ctx.createGain(), shaper = ctx.createWaveShaper(), post = ctx.createGain();
+      g.gain.value = vol;
+      pre.gain.value = 1 / 1.6; shaper.curve = ceiling; post.gain.value = 1.6;   // the shaper takes -1..1
+      g.connect(pre).connect(shaper).connect(post).connect(ctx.destination);
+      outs.set(ctx, g);
+    }
+    return outs.get(ctx);
+  };
+  SC.setVolume = function (pct) {
+    vol = (+pct || SC.VOL_DEFAULT) / 100;
+    outs.forEach((g, ctx) => { try { g.gain.setTargetAtTime(vol, ctx.currentTime, 0.02); } catch (e) { g.gain.value = vol; } });
+  };
+
   // ---------- Audio ----------
   let actx = null, out = null;
   SC.audio = async function () {
@@ -100,7 +132,7 @@
       out = actx.createGain(); out.gain.value = 0.9;
       const comp = actx.createDynamicsCompressor();   // chords and drones stacked up shouldn't clip
       comp.threshold.value = -10; comp.ratio.value = 4;
-      out.connect(comp).connect(actx.destination);
+      out.connect(comp).connect(SC.outFor(actx));   // volume after the compressor, so it isn't squashed back down
     }
     await SC.resume(actx);
     return actx;
@@ -521,6 +553,8 @@
         $('live').scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
       wasRunning = running;
+      // the rest of the setup locks during a session; the note volume never does
+      if ($('vol')) $('vol').disabled = false;
       let t = running ? '' : msg.textContent.trim();
       if (t === 'Listening.' || t === 'Mic off.') t = '';
       if (/^Couldn't use the microphone|can't reach the microphone/.test(t)) t += ' ' + MIC_HELP;
@@ -536,6 +570,10 @@
     sync();
   }
   document.addEventListener('DOMContentLoaded', startStatus);
+  // louder or quieter as the slider moves, not only when it's let go
+  document.addEventListener('DOMContentLoaded', () => {
+    if ($('vol')) $('vol').addEventListener('input', () => SC.setVolume($('vol').value));
+  });
 
   // Say so the moment the mic is asked for, and nudge if the permission box
   // hasn't been answered after a few seconds.
@@ -570,7 +608,7 @@
   //   describe(rec)                         one-line description of a session
   //   leadIn                                ms after a prompt starts before singing is scored
   SC.trainer = function (cfg) {
-    const store = SC.store(cfg.key, Object.assign({ phones: false, gate: 60, anyOct: true, showName: true, count: 12 }, cfg.defaults));
+    const store = SC.store(cfg.key, Object.assign({ phones: false, gate: 60, vol: SC.VOL_DEFAULT, anyOct: true, showName: true, count: 12 }, cfg.defaults));
     const S = store.settings;
     const save = () => { if (!store.save()) $('msg').textContent = 'Couldn\'t save (browser storage full or blocked). Export your sessions to keep them.'; };
     const T = { store, S, save };
@@ -603,12 +641,14 @@
 
     // common setup controls
     $('phones').checked = S.phones; $('gate').value = S.gate;
+    if ($('vol')) { $('vol').value = S.vol; SC.setVolume(S.vol); }
     if ($('anyoct')) $('anyoct').checked = S.anyOct;
     if ($('showName')) $('showName').checked = S.showName;
     if ($('count')) $('count').value = S.count;
     const hint = () => { if ($('phonesHint')) $('phonesHint').textContent = cfg.phonesHint ? cfg.phonesHint(S) : ''; };
     const readAll = () => {
       S.phones = $('phones').checked; S.gate = +$('gate').value;
+      if ($('vol')) { S.vol = +$('vol').value; SC.setVolume(S.vol); }
       if ($('anyoct')) S.anyOct = $('anyoct').checked;
       if ($('showName')) S.showName = $('showName').checked;
       if ($('count')) S.count = +$('count').value;
