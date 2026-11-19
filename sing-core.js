@@ -99,6 +99,7 @@
   // that leaves anything below 0.9 untouched and rounds off the loudest peaks
   // instead of letting them crack.
   SC.VOL_DEFAULT = 115;
+  SC.MAKEUP = 2;
   let vol = SC.VOL_DEFAULT / 100;
   const outs = new Map();   // AudioContext -> its volume node
   let ceiling = null;
@@ -111,17 +112,26 @@
           ceiling[i] = (a < 0.9 ? x : Math.sign(x) * (0.9 + 0.1 * Math.tanh((a - 0.9) / 0.1))) / 1.6;
         }
       }
+      // The notes are normalised by their loudest instant, the strike, and then
+      // die away, so the part you actually hear averaged about -18 dB (piano)
+      // and -24 dB (guitar): far quieter than music on the same phone. The
+      // compressor evens out strike and ring, then makeup gain lifts the
+      // whole note to roughly -11 dB at the default setting. Measured 19/11/2026.
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -30; comp.knee.value = 6; comp.ratio.value = 12;
+      comp.attack.value = 0.003; comp.release.value = 0.25;
+      const makeup = ctx.createGain(); makeup.gain.value = SC.MAKEUP;
       const g = ctx.createGain(), pre = ctx.createGain(), shaper = ctx.createWaveShaper(), post = ctx.createGain();
       g.gain.value = vol;
       pre.gain.value = 1 / 1.6; shaper.curve = ceiling; post.gain.value = 1.6;   // the shaper takes -1..1
-      g.connect(pre).connect(shaper).connect(post).connect(ctx.destination);
-      outs.set(ctx, g);
+      comp.connect(makeup).connect(g).connect(pre).connect(shaper).connect(post).connect(ctx.destination);
+      outs.set(ctx, { input: comp, g });
     }
-    return outs.get(ctx);
+    return outs.get(ctx).input;
   };
   SC.setVolume = function (pct) {
     vol = (+pct || SC.VOL_DEFAULT) / 100;
-    outs.forEach((g, ctx) => { try { g.gain.setTargetAtTime(vol, ctx.currentTime, 0.02); } catch (e) { g.gain.value = vol; } });
+    outs.forEach(({ g }, ctx) => { try { g.gain.setTargetAtTime(vol, ctx.currentTime, 0.02); } catch (e) { g.gain.value = vol; } });
   };
 
   // ---------- Audio ----------
