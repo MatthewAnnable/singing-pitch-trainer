@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en" data-app="sing">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sing From a Chord</title>
+<link rel="stylesheet" href="sing.css?v=2">
+<meta name="theme-color" content="#141A17" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#E9F0E6" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="evening.css">
+<script src="teach-tools.js?v=3"></script>
+<script src="sing-core.js?v=2"></script>
+</head>
+<body>
+<main>
+  <div class="topline" id="topline"></div>
+  <p class="ma-brand"><svg viewBox="-12 -12 779 339" aria-hidden="true"><polyline points="0,158 85,158 159,315 159,0 292,315 425,0 425,315 559,0 693,315 533,158 755,158" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/></svg>Matthew Annable</p>
+  <h1>Sing From a Chord</h1>
+  <p class="sub">A real guitar or piano plays a chord. Find the note you're asked for inside it (the root, the 3rd or the 5th) and sing it in tune over the chord.</p>
+  <nav class="tabs"><button data-tab="practise" class="on">Practise</button><button data-tab="history">History</button></nav>
+
+  <section id="practise">
+    <div class="card" id="setup">
+      <div class="row">
+        <label>Instrument <select id="inst"><option value="guitar">Guitar</option><option value="piano">Piano</option></select></label>
+        <label>Chords <select id="from"><option value="open">Open chords</option><option value="key">The chords of a key</option></select></label>
+        <label id="keyWrap">Key <select id="key"></select></label>
+        <label data-lab hidden id="sevWrap"><input type="checkbox" id="sevenths"> 7th chords</label>
+      </div>
+      <div class="row" id="openWrap" style="align-items:flex-start">
+        <span class="lbl" style="padding-top:2px">Open chords</span>
+        <div class="checks" id="openList"></div>
+      </div>
+      <div class="row" style="align-items:flex-start">
+        <span class="lbl" style="padding-top:2px">Sing the</span>
+        <div class="checks" id="tones"></div>
+      </div>
+      <div class="row">
+        <label>Your range <select id="lo"></select></label>
+        <label>to <select id="hi"></select></label>
+        <label>How many <select id="count"><option>8</option><option>12</option><option>16</option><option>24</option></select></label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="showName"> Show the note to sing</label>
+        <label><input type="checkbox" id="anyoct"> Any octave counts</label>
+        <label data-lab hidden><input type="checkbox" id="keepStrum"> Keep strumming while I sing</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="phones"> I'm wearing headphones</label>
+        <label>Mic sensitivity <input type="range" id="gate" min="0" max="100"></label>
+      </div>
+      <p class="hint" id="phonesHint"></p>
+      <div class="row" style="margin:0">
+        <button class="primary big" id="startBtn">Start session</button>
+        <button id="skipBtn" hidden>Skip the wait</button>
+      </div>
+    </div>
+    <div class="card" id="live"></div>
+    <div class="card" id="summary" hidden></div>
+  </section>
+  <section id="history" hidden></section>
+</main>
+<div id="tip" class="tip" hidden></div>
+
+<script>
+const { $, noteName, pcName, shuffle } = SC;
+
+const TONES = [
+  { id: 'root', iv: 0, name: 'root' },
+  { id: '3rd', iv: 1, name: '3rd' },
+  { id: '5th', iv: 2, name: '5th' },
+  { id: '7th', iv: 3, name: '7th', lab: true },
+];
+// [root pitch class, quality]; the student list is the first-year open chords
+const OPEN_CHORDS = [
+  [0, 'maj'], [2, 'maj'], [4, 'maj'], [7, 'maj'], [9, 'maj'], [9, 'min'], [4, 'min'], [2, 'min'],
+  [5, 'maj', 1], [11, '7', 1], [0, '7', 1], [7, '7', 1], [2, '7', 1], [9, '7', 1], [4, '7', 1],
+  [9, 'm7', 1], [4, 'm7', 1], [2, 'm7', 1], [0, 'maj7', 1], [5, 'maj7', 1],
+].filter(c => SC.lab || !c[2]).map(([pc, q]) => ({ pc, q, id: pc + q }));
+
+$('tones').innerHTML = TONES.filter(t => SC.lab || !t.lab).map(t => `<label><input type="checkbox" value="${t.id}"> ${t.name}</label>`).join('');
+$('openList').innerHTML = OPEN_CHORDS.map(c => `<label><input type="checkbox" value="${c.id}"> ${SC.chordName(c.pc, c.q)}</label>`).join('');
+SC.KEYS.forEach(k => $('key').add(new Option(k.name + ' major', k.pc)));
+
+const voicing = (S, c) => S.inst === 'guitar' ? SC.guitarVoicing(c.pc, c.q) : SC.pianoVoicing(c.pc, c.q);
+
+const T = SC.trainer({
+  key: 'singing-chord-tones-v1',
+  defaults: { inst: 'guitar', from: 'open', keyPc: 7, sevenths: false, open: ['0maj', '7maj', '2maj', '9min', '4min'], tones: ['root', '3rd', '5th'], lo: 48, hi: 64, keepStrum: true, count: 12 },
+  groupWord: 'chord note',
+  groupOrder: TONES.map(t => t.id),
+  groupName: g => 'the ' + g,
+  groupShort: g => g,
+  leadIn: 1200,
+  readSettings(S) {
+    S.inst = $('inst').value; S.from = $('from').value; S.keyPc = +$('key').value;
+    S.sevenths = SC.lab && $('sevenths').checked;
+    S.open = [...$('openList').querySelectorAll('input:checked')].map(i => i.value);
+    S.tones = [...$('tones').querySelectorAll('input:checked')].map(i => i.value);
+    S.lo = Math.min(+$('lo').value, +$('hi').value); S.hi = Math.max(+$('lo').value, +$('hi').value);
+    S.keepStrum = !SC.lab || $('keepStrum').checked;
+    $('keyWrap').hidden = S.from !== 'key';
+    $('sevWrap').hidden = !SC.lab || S.from !== 'key';
+    $('openWrap').hidden = S.from !== 'open';
+  },
+  phonesHint: S => S.phones
+    ? 'Headphones: the chord keeps ringing (struck again every few seconds) while you sing over it.'
+    : 'Speakers: the chord rings for a couple of seconds, then stops so the mic only hears you. Sing your note once it stops. Headphones let you sing over it.',
+  emptyMsg: 'Nothing fits. Tick at least one chord and one note, and give yourself a range of an octave or more.',
+  describe: r => {
+    const s = r.settings;
+    return `${s.inst === 'guitar' ? 'Guitar' : 'Piano'} · ${s.from === 'key' ? SC.KEYS[s.keyPc].name + ' major' + (s.sevenths ? ' 7ths' : '') : 'open chords'} · ${(s.tones || []).join(', ')}`;
+  },
+  build(S) {
+    const chords = S.from === 'key'
+      ? SC.diatonic(S.keyPc, 'major', S.sevenths).filter(c => c.q !== 'dim' || SC.lab).map(c => ({ ...c, roman: SC.ROMAN(c.degree, c.q), keyPc: S.keyPc }))
+      : OPEN_CHORDS.filter(c => S.open.includes(c.id)).map(c => ({ ...c, keyPc: undefined }));
+    const asks = [];
+    for (const c of chords) for (const id of S.tones) {
+      const t = TONES.find(x => x.id === id), iv = SC.QUALITIES[c.q].iv[t.iv];
+      if (iv == null) continue;
+      const pc = (c.pc + iv) % 12, mid = (S.lo + S.hi) / 2;
+      let best = null;
+      for (let m = S.lo; m <= S.hi; m++) if (m % 12 === pc && (best == null || Math.abs(m - mid) < Math.abs(best - mid))) best = m;
+      if (best != null) asks.push({ c, t, target: best });
+    }
+    if (!asks.length) return [];
+    // rotate through the chord notes, and don't play the same chord twice running
+    const byTone = {}; asks.forEach(a => (byTone[a.t.id] = byTone[a.t.id] || []).push(a));
+    const ids = Object.keys(byTone), out = [];
+    let order = [], last = null;
+    for (let i = 0; i < S.count; i++) {
+      if (!order.length) order = shuffle(ids);
+      const id = order.shift(), all = byTone[id], pool = all.filter(a => a.c.id !== last && (a.c.pc + a.c.q) !== last);
+      const a = (pool.length ? pool : all)[Math.floor(Math.random() * (pool.length || all.length))];
+      last = a.c.pc + a.c.q;
+      const name = SC.chordName(a.c.pc, a.c.q, a.c.keyPc);
+      out.push({
+        group: a.t.id, target: a.target, keyPc: a.c.keyPc == null ? a.c.pc : a.c.keyPc,
+        refLabel: 'Chord', ref: name, refSub: a.c.roman ? `${a.c.roman} in ${SC.KEYS[S.keyPc].name}` : SC.QUALITIES[a.c.q].long,
+        ask: 'the ' + a.t.name, short: `${name} ${a.t.name}`, title: name,
+        data: { pc: a.c.pc, q: a.c.q, v: voicing(S, a.c) },
+      });
+    }
+    return out;
+  },
+  sounds(S, prompts) { return [{ kind: S.inst, midis: prompts.flatMap(p => p.data.v) }]; },
+  play(p, S) {
+    if (S.phones && S.keepStrum) return Object.assign(SC.ring(S.inst, p.data.v, { every: S.inst === 'guitar' ? 4 : 3 }), { gateMs: 0 });
+    const h = SC.strum(S.inst, p.data.v, { dur: S.phones ? 3.5 : 2.0 });
+    return { stop: () => h.stop(), gateMs: S.phones ? 0 : 2400 };
+  },
+  // which note of the chord you're on
+  heard(p, m) {
+    const iv = SC.QUALITIES[p.data.q].iv, r = Math.round(m), pc = ((r % 12) + 12) % 12;
+    const k = iv.findIndex(i => (p.data.pc + i) % 12 === pc);
+    if (k < 0) return 'not in the chord';
+    return 'on the ' + ['root', '3rd', '5th', '7th'][k];
+  },
+});
+const S = T.S;
+
+SC.rangeSelects($('lo'), $('hi'), S.lo, S.hi);
+$('inst').value = S.inst; $('from').value = S.from; $('key').value = S.keyPc;
+$('sevenths').checked = S.sevenths; $('keepStrum').checked = S.keepStrum;
+$('openList').querySelectorAll('input').forEach(i => { i.checked = S.open.includes(i.value); });
+$('tones').querySelectorAll('input').forEach(i => { i.checked = S.tones.includes(i.value); });
+SC.header();
+$('keyWrap').hidden = S.from !== 'key'; $('sevWrap').hidden = !SC.lab || S.from !== 'key'; $('openWrap').hidden = S.from !== 'open';
+</script>
+</body>
+</html>

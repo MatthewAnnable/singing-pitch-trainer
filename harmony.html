@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en" data-app="sing">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Singing Harmony</title>
+<link rel="stylesheet" href="sing.css?v=2">
+<meta name="theme-color" content="#141A17" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#E9F0E6" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="evening.css">
+<script src="teach-tools.js?v=3"></script>
+<script src="sing-core.js?v=2"></script>
+</head>
+<body>
+<main>
+  <div class="topline" id="topline"></div>
+  <p class="ma-brand"><svg viewBox="-12 -12 779 339" aria-hidden="true"><polyline points="0,158 85,158 159,315 159,0 292,315 425,0 425,315 559,0 693,315 533,158 755,158" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/></svg>Matthew Annable</p>
+  <h1>Singing Harmony</h1>
+  <p class="sub">A melody note rings out and you sing a harmony against it: a 3rd above, a 3rd below, and so on. Everything stays in one key, so the harmonies are the ones you'd really sing.</p>
+  <nav class="tabs"><button data-tab="practise" class="on">Practise</button><button data-tab="history">History</button></nav>
+
+  <section id="practise">
+    <div class="card" id="setup">
+      <div class="row">
+        <label>Key <select id="key"></select></label>
+        <label data-lab hidden>Scale <select id="scale"><option value="major">Major</option><option value="minor">Minor (natural)</option></select></label>
+        <label>Melody sound <select id="sound">
+          <option value="piano+pad">Piano, held</option>
+          <option value="guitar+pad">Guitar, held</option>
+          <option value="piano">Piano</option>
+          <option value="guitar">Guitar</option>
+          <option value="pad">Soft held tone</option>
+        </select></label>
+      </div>
+      <div class="row">
+        <label>Your range <select id="lo"></select></label>
+        <label>to <select id="hi"></select></label>
+        <label>How many <select id="count"><option>8</option><option>12</option><option>16</option><option>24</option></select></label>
+      </div>
+      <div class="row" style="align-items:flex-start">
+        <span class="lbl" style="padding-top:2px">Harmonies</span>
+        <div class="checks" id="types"></div>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="showName"> Show the note to sing</label>
+        <label><input type="checkbox" id="anyoct"> Any octave counts</label>
+        <label data-lab hidden><input type="checkbox" id="keyEach"> Key chord before every one</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="phones"> I'm wearing headphones</label>
+        <label>Mic sensitivity <input type="range" id="gate" min="0" max="100"></label>
+      </div>
+      <p class="hint" id="phonesHint"></p>
+      <div class="row" style="margin:0">
+        <button class="primary big" id="startBtn">Start session</button>
+        <button id="skipBtn" hidden>Skip the wait</button>
+      </div>
+    </div>
+    <div class="card" id="live"></div>
+    <div class="card" id="summary" hidden></div>
+  </section>
+  <section id="history" hidden></section>
+</main>
+<div id="tip" class="tip" hidden></div>
+
+<script>
+const { $, noteName, intervalName, shuffle } = SC;
+
+// Diatonic harmonies: steps along the scale from the melody note. 4ths and 5ths
+// that come out as a tritone (F to B in C major) are skipped, as you'd never sing them.
+const TYPES = [
+  { id: '3a', steps: 2, name: '3rd above', student: true },
+  { id: '3b', steps: -2, name: '3rd below', student: true },
+  { id: '6b', steps: -5, name: '6th below', student: true },
+  { id: '6a', steps: 5, name: '6th above' },
+  { id: '5b', steps: -4, name: '5th below', perfect: true },
+  { id: '4b', steps: -3, name: '4th below', perfect: true },
+  { id: '5a', steps: 4, name: '5th above', perfect: true },
+  { id: '4a', steps: 3, name: '4th above', perfect: true },
+];
+const TYPE = Object.fromEntries(TYPES.map(t => [t.id, t]));
+const shown = TYPES.filter(t => SC.lab || t.student);
+$('types').innerHTML = shown.map(t => `<label><input type="checkbox" value="${t.id}"> ${t.name}</label>`).join('');
+SC.KEYS.forEach(k => $('key').add(new Option(k.name + (SC.lab ? '' : ' major'), k.pc)));
+$('key').add(new Option('A different key each time', 'rand'));
+
+const T = SC.trainer({
+  key: 'singing-harmony-v1',
+  defaults: { keyPc: 0, scale: 'major', sound: 'piano+pad', lo: 48, hi: 64, types: ['3a', '3b'], keyEach: false, anyOct: true, count: 12 },
+  groupWord: 'harmony',
+  groupOrder: TYPES.map(t => t.id),
+  groupName: g => TYPE[g] ? TYPE[g].name : g,
+  groupShort: g => TYPE[g] ? TYPE[g].name.replace(' above', '↑').replace(' below', '↓') : g,
+  leadIn: 900,
+  readSettings(S) {
+    S.keyPc = $('key').value === 'rand' ? 'rand' : +$('key').value;
+    S.scale = SC.lab ? $('scale').value : 'major';
+    S.sound = $('sound').value;
+    S.lo = Math.min(+$('lo').value, +$('hi').value); S.hi = Math.max(+$('lo').value, +$('hi').value);
+    S.types = [...$('types').querySelectorAll('input:checked')].map(i => i.value);
+    S.keyEach = SC.lab && $('keyEach').checked;
+  },
+  phonesHint: S => S.phones
+    ? 'Headphones: the melody note keeps ringing while you sing over it. This is the way to practise harmony.'
+    : 'Speakers: the melody note keeps ringing quietly, and the app ignores anything it hears at the melody\'s pitch so the speaker doesn\'t count as you. Headphones work better.',
+  emptyMsg: 'Nothing fits. Tick at least one harmony and give yourself a range of an octave or more.',
+  describe: r => {
+    const s = r.settings, k = r.items[0] ? r.items[0].keyPc : s.keyPc;
+    const types = (s.types || []).map(t => TYPE[t] ? TYPE[t].name : t).join(', ');
+    return `${s.keyPc === 'rand' ? 'Changing keys' : SC.pcName(k, k) + ' ' + s.scale} · ${types}`;
+  },
+  build(S) {
+    if (!S.types.length) return [];
+    const keyPc = S.keyPc === 'rand' ? Math.floor(Math.random() * 12) : S.keyPc;
+    const sc = SC.SCALES[S.scale];
+    const scaleNotes = [];
+    for (let m = 24; m <= 96; m++) if (sc.includes(((m - keyPc) % 12 + 12) % 12)) scaleNotes.push(m);
+    const cands = {};
+    for (const id of S.types) {
+      const t = TYPE[id]; cands[id] = [];
+      scaleNotes.forEach((mel, j) => {
+        const tgt = scaleNotes[j + t.steps];
+        if (tgt == null || tgt < S.lo || tgt > S.hi) return;
+        if (mel < S.lo - 7 || mel > S.hi + 7 || mel < 40 || mel > 84) return;   // keep the melody near your voice
+        const semis = Math.abs(tgt - mel);
+        if (t.perfect && semis % 12 === 6) return;
+        cands[id].push({ mel, tgt, semis });
+      });
+    }
+    const ids = S.types.filter(id => cands[id].length);
+    if (!ids.length) return [];
+    // rotate through the harmonies in a shuffled order, never the same melody note twice running
+    // and use up every melody note for a harmony before any comes round again
+    const out = [], left = {}; let order = [], last = null;
+    for (let i = 0; i < S.count; i++) {
+      if (!order.length) order = shuffle(ids);
+      const id = order.shift();
+      if (!left[id] || !left[id].length) left[id] = shuffle(cands[id]);
+      let k = left[id].findIndex(c => c.mel !== last);
+      if (k < 0) k = 0;
+      const c = left[id].splice(k, 1)[0];
+      last = c.mel;
+      const t = TYPE[id], degree = ['root', '2nd', '3rd', '4th', '5th', '6th', '7th'][sc.indexOf(((c.mel - keyPc) % 12 + 12) % 12)];
+      out.push({
+        group: id, target: c.tgt, keyPc,
+        refLabel: 'Melody', ref: noteName(c.mel, keyPc), refSub: `the ${degree} of ${SC.pcName(keyPc, keyPc)}${S.scale === 'minor' ? ' minor' : ''}`,
+        ask: t.name, short: t.name.replace(' above', '↑').replace(' below', '↓'),
+        title: noteName(c.mel, keyPc),
+        data: { mel: c.mel, semis: c.semis },
+      });
+    }
+    return out;
+  },
+  sounds(S, prompts) {
+    const inst = S.sound === 'pad' ? 'piano' : S.sound.replace('+pad', '');
+    const k = prompts[0].keyPc, tonic = SC.diatonic(k, S.scale)[0];
+    return [{ kind: inst, midis: [...prompts.map(p => p.data.mel), ...SC.guitarVoicing(tonic.pc, tonic.q), ...SC.pianoVoicing(tonic.pc, tonic.q)] }];
+  },
+  // the key chord, then a moment's quiet
+  async intro(S, prompts) { await keyChord(S, prompts[0].keyPc); },
+  play(p, S) {
+    const run = async () => {
+      if (S.keyEach) {
+        await keyChord(S, p.keyPc, 1300);
+        $('refLbl').textContent = 'Melody'; $('refNote').textContent = p.ref; $('refTxt').textContent = p.refSub;
+      }
+      return SC.ring(S.sound, p.data.mel, { gain: S.phones ? 1 : 0.55 });
+    };
+    let h = null, stopped = false;
+    run().then(x => { if (stopped) x.stop(); else h = x; });
+    return { stop() { stopped = true; if (h) h.stop(); }, gateMs: S.keyEach ? 1300 : 0 };
+  },
+  // speakers: a reading at the melody's pitch (any octave) is the speaker, not you
+  ignore(p, m, S) {
+    if (S.phones) return false;
+    let d = (m - p.data.mel) * 100; d -= Math.round(d / 1200) * 1200;
+    return Math.abs(d) < 40;
+  },
+  heard(p, m) {
+    const d = m - p.data.mel, r = Math.round(d);
+    if (!SC.lab && Math.round(m) === p.target) return '';
+    return r === 0 ? 'on the melody note' : `${intervalName(r)} ${r > 0 ? 'above' : 'below'}`;
+  },
+});
+const S = T.S;
+
+function keyChord(S, keyPc, ms = 1800) {
+  const tonic = SC.diatonic(keyPc, S.scale)[0], inst = S.sound.replace('+pad', '');
+  const kind = inst === 'pad' ? 'piano' : inst;
+  const v = kind === 'guitar' ? SC.guitarVoicing(tonic.pc, tonic.q) : SC.pianoVoicing(tonic.pc, tonic.q);
+  $('refLbl').textContent = 'Key'; $('refNote').textContent = SC.chordName(tonic.pc, tonic.q, keyPc); $('refTxt').textContent = 'the home chord';
+  SC.strum(kind, v, { gain: 0.9, dur: ms / 1000 - 0.2 });
+  return new Promise(r => setTimeout(r, ms + 300));
+}
+
+// setup controls from saved settings
+SC.rangeSelects($('lo'), $('hi'), S.lo, S.hi);
+$('key').value = S.keyPc; $('scale').value = S.scale; $('sound').value = S.sound; $('keyEach').checked = S.keyEach;
+$('types').querySelectorAll('input').forEach(i => { i.checked = S.types.includes(i.value); });
+SC.header();
+</script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-app="sing">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Singing Lab</title>
+<link rel="stylesheet" href="../sing.css?v=2">
+<meta name="theme-color" content="#141A17" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#E9F0E6" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="../evening.css">
+<script>
+  // visiting the lab home switches lab mode on for this device
+  try { if (!/[?&]lab=0/.test(location.search)) localStorage.setItem('sing-lab', '1'); } catch (e) {}
+</script>
+<script src="../sing-core.js?v=2"></script>
+<style>
+  .ex { display:block; text-decoration:none; color:var(--ink); }
+  .ex h2 { font-size:17px; margin:0 0 4px; color:var(--accent); display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+  .ex p { margin:0 0 4px; color:var(--mute); font-size:14px; }
+  .ex p.labline { color:var(--ink); font-size:13.5px; }
+  .tag { font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--mute); font-weight:500; }
+  .tag.beta { border-color:var(--action); color:var(--action); }
+  .ex:hover h2 span.n { text-decoration:underline; }
+</style>
+</head>
+<body>
+<main>
+  <p class="ma-brand"><svg viewBox="-12 -12 779 339" aria-hidden="true"><polyline points="0,158 85,158 159,315 159,0 292,315 425,0 425,315 559,0 693,315 533,158 755,158" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/></svg>Matthew Annable</p>
+  <h1>Singing Lab <span class="labpill">Lab</span></h1>
+  <p class="sub">Matthew's version: every exercise with its full settings, plus the beta ones students don't see yet. Students get the plain home page.</p>
+  <div id="list"></div>
+  <div class="card">
+    <h2>This device</h2>
+    <p class="hint" style="margin:0 0 10px">Lab mode is on here, so the exercises show their extra settings wherever you open them. Turn it off on a device a student uses, such as a lesson iPad that's shared on screen.</p>
+    <div class="row" style="margin:0"><a class="btn" href="../?lab=0">Turn lab mode off and see the student home</a></div>
+  </div>
+  <p class="hint" style="margin-top:18px">Real instrument sounds: Salamander Grand Piano by Alexander Holm, and acoustic guitar from tonejs-instruments by Nicholas Brosowsky, both CC BY 3.0.</p>
+</main>
+<script>
+document.getElementById('list').innerHTML = SC.EXERCISES.map(e =>
+  `<a class="card ex" href="../${e.href}"><h2><span class="n">${SC.esc(e.name)}</span>${e.beta ? '<span class="tag beta">Beta</span>' : ''}<span class="tag">${e.students ? 'Students see it' : 'Only you'}</span></h2>
+   <p>${SC.esc(e.blurb)}</p>${e.lab ? `<p class="labline">${SC.esc(e.lab)}</p>` : ''}</a>`).join('');
+</script>
+</body>
+</html>

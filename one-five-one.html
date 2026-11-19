@@ -106,12 +106,14 @@
 <meta name="theme-color" content="#E9F0E6" media="(prefers-color-scheme: light)">
 <link rel="stylesheet" href="evening.css">
 <script src="teach-tools.js?v=3"></script>
+<script src="sing-core.js?v=2"></script>
 </head>
 <body>
 <main>
+  <div class="topline" id="topline"></div>
   <p class="ma-brand"><svg viewBox="-12 -12 779 339" aria-hidden="true"><polyline points="0,158 85,158 159,315 159,0 292,315 425,0 425,315 559,0 693,315 533,158 755,158" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/></svg>Matthew Annable</p>
   <h1>Singing 1–5–1 Trainer</h1>
-  <p class="sub">Hear the root, sing it, go up to the 5th, and come back down to the root. Every take is saved, so you can see which note you drift on. <a href="index.html" style="color:var(--accent)">Single-note ladder →</a> <a href="vowels.html" style="color:var(--accent);margin-left:8px">Vowels →</a></p>
+  <p class="sub">Hear the root, sing it, go up to the 5th, and come back down to the root. Every take is saved, so you can see which note you drift on.</p>
   <nav class="tabs"><button data-tab="practise" class="on">Practise</button><button data-tab="history">History</button></nav>
 
   <section id="practise">
@@ -950,6 +952,7 @@ document.addEventListener('keydown', e => {
 addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (!$('history').hidden) renderHistory(); }, 200); });
+SC.header();
 </script>
 </body>
 </html>
