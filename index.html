@@ -34,6 +34,7 @@
   label { font-size:14px; color:var(--mute); display:flex; align-items:center; gap:6px; }
   select { font:inherit; font-size:15px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
   input[type=range] { width:120px; }
+  input[type=date] { font:inherit; font-size:15px; padding:5px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
   .hint { color:var(--mute); font-size:13px; margin:0 0 12px; }
   .msg { color:var(--mute); font-size:13px; margin:8px 0 0; min-height:1em; }
 
@@ -160,7 +161,11 @@
     <div class="card"><h2>On pitch, session by session</h2><div id="chOn"></div>
       <p class="hint" style="margin:6px 0 0">Share of held singing within 25¢ of the note.</p></div>
     <div class="card"><h2>Average lean, session by session</h2><div id="chLean"></div><div class="legend"><span><i style="background:var(--flat)"></i>flat</span><span><i style="background:var(--sharp)"></i>sharp</span><span><i style="background:var(--band)"></i>±10¢ (inner) / ±25¢</span></div></div>
-    <div class="card"><h2>Lean by note, all sessions</h2><div id="chNotes"></div><div class="legend"><span><i style="background:var(--flat)"></i>flat</span><span><i style="background:var(--sharp)"></i>sharp</span><span><i style="background:var(--band)"></i>±10¢ (inner) / ±25¢</span></div></div>
+    <div class="card"><h2 id="notesTitle">Lean by note</h2>
+      <div class="row" style="margin:0 0 8px"><div class="tabs" id="notePreset" style="margin:0"><button data-days="14">Last 2 weeks</button><button data-days="30">Last month</button><button data-days="0">All dates</button></div></div>
+      <div class="row" style="margin:0 0 6px"><label>From <input type="date" id="nFrom"></label><label>To <input type="date" id="nTo"></label></div>
+      <p class="hint" id="notesHint" style="margin:0 0 10px"></p>
+      <div id="chNotes"></div><div class="legend"><span><i style="background:var(--flat)"></i>flat</span><span><i style="background:var(--sharp)"></i>sharp</span><span><i style="background:var(--band)"></i>±10¢ (inner) / ±25¢</span></div></div>
     <div class="card"><h2>Sessions</h2><div id="sessList"></div>
       <div class="row" style="margin:12px 0 6px">
         <button id="exportBtn">Export sessions</button>
@@ -777,7 +782,8 @@ function renderHistory() {
   const rows = histMode === 'all' ? allRows : allRows.filter(r => r.st.mode === histMode);
   if (!rows.length) {
     $('histTop').innerHTML = `<h2>Your progress</h2><p class="empty">${allRows.length ? `No ${MODES[histMode].toLowerCase()} sessions yet.` : 'No sessions yet. Sing one and it will show up here.'}</p>`;
-    ['chOn', 'chLean', 'chNotes', 'sessList'].forEach(id => $(id).innerHTML = '<p class="empty">Nothing to show yet.</p>');
+    ['chOn', 'chLean', 'sessList'].forEach(id => $(id).innerHTML = '<p class="empty">Nothing to show yet.</p>');
+    renderNoteLean([]);
     return;
   }
   // per-note, across sessions
@@ -819,12 +825,52 @@ function renderHistory() {
 
   lineChart($('chOn'), rows.map(r => ({ v: r.st.on, label: ddmm(r.s.start), tip: `${fullDate(r.s.start)}: ${r.st.on}% on pitch, ${r.st.spot}% spot on` })));
   leanChart($('chLean'), rows.map(r => ({ v: r.st.lean, label: ddmm(r.s.start), tip: `${fullDate(r.s.start)}: ${r.st.lean == null ? 'n/a' : lean(r.st.lean)}` })));
-  leanChart($('chNotes'), notes.map(n => ({ v: n.v, label: noteName(n.m), tip: `${noteName(n.m)}: ${lean(n.v)}, ${Math.round(n.on)}% on pitch, over ${n.k} session${n.k === 1 ? '' : 's'}` })));
+  renderNoteLean(rows);
 
   $('sessList').innerHTML = `<div style="overflow-x:auto"><table class="sl"><tr><th>When · mode · range</th><th>On pitch</th><th>Spot on</th><th>Found in</th><th>Lean</th><th></th></tr>${
     [...rows].reverse().map(({ s, st }) => `<tr><td><a href="#" data-open="${s.id}">${ddmm(s.start)} ${fullDate(s.start).slice(-5)}</a><br><span style="font-size:11.5px;color:var(--mute)">${st.mode ? MODES[st.mode] : 'Not recorded'} · ${noteName(s.lo)}–${noteName(s.hi)}${s.dir === 'down' ? '↓' : '↑'}</span>${s.note ? `<br><span style="font-size:12.5px">📝 ${esc(s.note)}</span>` : ''}</td><td>${st.on}%</td><td>${st.spot}%</td><td>${(f => f.length ? median(f).toFixed(1) + 's' : '–')(st.notes.map(n => n.st.find).filter(x => x != null))}</td><td>${st.lean == null ? '–' : sgn(st.lean) + '¢'}</td><td class="x"><button data-del="${s.id}" title="Delete this session">✕</button></td></tr>`).join('')
   }</table></div>`;
 }
+// Lean by note for a chosen date range, e.g. everything since a change in technique.
+// Dates are compared as local calendar days; a blank box means no limit on that side.
+const dayOf = iso => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const shortDay = day => day.slice(8) + '/' + day.slice(5, 7);
+let noteRows = [];
+function renderNoteLean(rows) {
+  if (rows) noteRows = rows;
+  const from = S.noteFrom || '', to = S.noteTo || '';
+  $('nFrom').value = from; $('nTo').value = to;
+  const inRange = noteRows.filter(r => { const d = dayOf(r.s.start); return (!from || d >= from) && (!to || d <= to); });
+  const span = from && to ? `${shortDay(from)} to ${shortDay(to)}` : from ? `since ${shortDay(from)}` : to ? `up to ${shortDay(to)}` : 'all dates';
+  $('notesTitle').textContent = `Lean by note, ${span}`;
+  const today = dayOf(new Date().toISOString());
+  document.querySelectorAll('#notePreset [data-days]').forEach(b => {
+    const n = +b.dataset.days;
+    b.classList.toggle('on', n === 0 ? !from && !to : to === '' && from === dayOf(new Date(Date.now() - (n - 1) * 864e5).toISOString()));
+  });
+  const per = new Map();
+  for (const { st } of inRange) for (const n of st.withMean) {
+    if (!per.has(n.m)) per.set(n.m, { means: [], on: [] });
+    per.get(n.m).means.push(n.st.mean); per.get(n.m).on.push(n.st.on);
+  }
+  const notes = [...per.entries()].sort((a, b) => a[0] - b[0]).map(([m, p]) => ({ m, v: avg(p.means), on: avg(p.on), k: p.means.length }));
+  const modeNote = histMode === 'all' ? '' : ` (${MODES[histMode].toLowerCase()} only)`;
+  $('notesHint').textContent = inRange.length
+    ? `${inRange.length} of ${noteRows.length} session${noteRows.length === 1 ? '' : 's'}${modeNote}. Each bar is that note's average lean over these sessions.`
+    : `No sessions${modeNote} in these dates.`;
+  if (!notes.length) { $('chNotes').innerHTML = '<p class="empty">Nothing to show for these dates.</p>'; return; }
+  leanChart($('chNotes'), notes.map(n => ({ v: n.v, label: noteName(n.m), tip: `${noteName(n.m)}: ${lean(n.v)}, ${Math.round(n.on)}% on pitch, over ${n.k} session${n.k === 1 ? '' : 's'}` })));
+}
+$('notePreset').addEventListener('click', e => {
+  const b = e.target.closest('[data-days]'); if (!b) return;
+  const n = +b.dataset.days;
+  S.noteFrom = n ? dayOf(new Date(Date.now() - (n - 1) * 864e5).toISOString()) : '';
+  S.noteTo = '';
+  save(); renderNoteLean();
+});
+for (const id of ['nFrom', 'nTo']) $(id).addEventListener('change', () => {
+  S.noteFrom = $('nFrom').value; S.noteTo = $('nTo').value; save(); renderNoteLean();
+});
 $('histFilter').addEventListener('click', e => {
   const b = e.target.closest('[data-mode]'); if (!b) return;
   histMode = b.dataset.mode; renderHistory();
