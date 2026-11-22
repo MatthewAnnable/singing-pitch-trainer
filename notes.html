@@ -921,11 +921,11 @@ $('importFile').onchange = async e => {
 
 // ---------- Wiring ----------
 function showTab(t) {
-  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $('practise').hidden = t !== 'practise'; $('history').hidden = t !== 'history';
   if (t === 'history') renderHistory();
 }
-document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 $('startBtn').onclick = startSession;
 $('nextBtn').onclick = nextNote;
 $('replayBtn').onclick = replay;
