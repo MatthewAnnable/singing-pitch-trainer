@@ -143,11 +143,14 @@ const T = SC.trainer({
       if (k < 0) k = 0;
       const c = left[id].splice(k, 1)[0];
       last = c.mel;
-      const t = TYPE[id], degree = ['root', '2nd', '3rd', '4th', '5th', '6th', '7th'][sc.indexOf(((c.mel - keyPc) % 12 + 12) % 12)];
+      // name the exact interval for this note, e.g. "Sing up a major 3rd"
+      const iv = intervalName(c.semis), up = TYPE[id].steps > 0;
+      const ivShort = iv.replace(/^major /, 'M').replace(/^minor /, 'm').replace(/^perfect /, 'P').replace(/(\d)(st|nd|rd|th)$/, '$1');
+      const t = TYPE[id], degree =['root', '2nd', '3rd', '4th', '5th', '6th', '7th'][sc.indexOf(((c.mel - keyPc) % 12 + 12) % 12)];
       out.push({
         group: id, target: c.tgt, keyPc,
         refLabel: 'Melody', ref: noteName(c.mel, keyPc), refSub: `the ${degree} of ${SC.pcName(keyPc, keyPc)}${S.scale === 'minor' ? ' minor' : ''}`,
-        ask: t.name, short: t.name.replace(' above', '↑').replace(' below', '↓'),
+        ask: `Sing ${up ? 'up' : 'down'} a ${iv}`, short: ivShort + (up ? '↑' : '↓'),
         title: noteName(c.mel, keyPc),
         data: { mel: c.mel, semis: c.semis },
       });
