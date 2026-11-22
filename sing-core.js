@@ -85,9 +85,24 @@
     s = s && s.sessions ? s : { sessions: [] };
     s.settings = Object.assign({}, defaults, s.settings || {});
     s.sessions.forEach(x => { x.done = true; });
-    s.save = () => {
+    const write = () => {
       try { const { save, ...rest } = s; localStorage.setItem(key, JSON.stringify(rest)); return true; }
       catch (e) { return false; }
+    };
+    // Every pitch reading (about 33 a second) is kept so the stats can be worked
+    // out again, and all the apps on this site share one small storage allowance.
+    // When it's full, swap the readings of the oldest finished sessions for their
+    // worked-out stats (the history shows the same numbers), one session at a
+    // time, until it fits. The newest sessions keep their readings longest.
+    s.save = () => {
+      if (write()) return true;
+      for (const x of s.sessions) {
+        if (!x.done || !x.items.some(n => n.f)) continue;
+        x.items.forEach(n => { if (n.f) { n.st = SC.noteStats(n.f); delete n.f; } });
+        x.items = x.items.filter(n => n.st);
+        if (write()) return true;
+      }
+      return false;
     };
     return s;
   };
@@ -867,7 +882,7 @@
 
     // ---- stats ----
     function sessionStats(s) {
-      const items = s.items.map(n => ({ ...n, st: SC.noteStats(n.f) })).filter(n => n.st);
+      const items = s.items.map(n => ({ ...n, st: n.f ? SC.noteStats(n.f) : n.st })).filter(n => n.st);
       if (!items.length) return null;
       const withMean = items.filter(n => n.st.mean != null);
       return {

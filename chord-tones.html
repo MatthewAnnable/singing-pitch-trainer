@@ -11,7 +11,7 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="evening.css">
 <script src="teach-tools.js?v=4"></script>
-<script src="sing-core.js?v=7"></script>
+<script src="sing-core.js?v=8"></script>
 </head>
 <body>
 <main>
@@ -138,10 +138,14 @@ const T = SC.trainer({
       const a = (pool.length ? pool : all)[Math.floor(Math.random() * (pool.length || all.length))];
       last = a.c.pc + a.c.q;
       const name = SC.chordName(a.c.pc, a.c.q, a.c.keyPc);
+      // the exact interval up from the root, e.g. a minor 3rd in A minor
+      const iv = SC.intervalName(SC.QUALITIES[a.c.q].iv[a.t.iv]);
+      const ivShort = iv.replace(/^major /, 'M').replace(/^minor /, 'm').replace(/^perfect /, 'P').replace(/(\d)(st|nd|rd|th)$/, '$1');
       out.push({
         group: a.t.id, target: a.target, keyPc: a.c.keyPc == null ? a.c.pc : a.c.keyPc,
         refLabel: 'Chord', ref: name, refSub: a.c.roman ? `${a.c.roman} in ${SC.KEYS[S.keyPc].name}` : SC.QUALITIES[a.c.q].long,
-        ask: 'the ' + a.t.name, short: `${name} ${a.t.name}`, title: name,
+        ask: a.t.id === 'root' ? `The root: ${pcName(a.c.pc, a.c.keyPc)}` : `The ${a.t.name}: a ${iv} up from ${pcName(a.c.pc, a.c.keyPc)}`,
+        short: `${name} ${a.t.id === 'root' ? 'root' : ivShort}`, title: name,
         data: { pc: a.c.pc, q: a.c.q, v: voicing(S, a.c) },
       });
     }
