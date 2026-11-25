@@ -430,8 +430,10 @@ let analyser, abuf, stream = null, micOn = false, lastRun = 0;
 const hist3 = [];                 // last three pitch readings, for a median filter against octave blips
 let live = { c: null, m: null };  // what's being heard now
 async function ensureAudio() {
-  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-  await SC.resume(actx);
+  // One audio context, shared with sing-core.js (the lab's real recordings play
+  // through it). SC.audio() creates it on the tap, before any await: Safari
+  // leaves a context made later (after the mic opens) silent.
+  actx = await SC.audio();
 }
 // Safari (and every browser on an iPhone, which all use its engine) clears a backlog
 // from opening the mic by running it 5% fast, which reads about 85¢ sharp, for up to
@@ -629,6 +631,7 @@ function nextNote() {
 function replay() {
   if (!sess || !sess.cur) return;
   sess.cur.r++;
+  SC.resume(actx);   // a tap: wake the sound if Safari paused it
   playRef(sess.cur.m);
 }
 function renderStrip() {
